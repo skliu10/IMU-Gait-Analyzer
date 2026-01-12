@@ -34,6 +34,11 @@ class GaitAnalyzer:
         self.data_buffer = deque(maxlen=BUFFER_SIZE)
         self.sampling_rate = SAMPLING_RATE
         
+        # Cumulative counters (never decrease)
+        self.total_strides = 0
+        self.session_start_time = None
+        self.last_ic_count = 0
+        
         # Initialize HeadGait processor
         self.use_headgait = HEADGAIT_AVAILABLE
         if self.use_headgait:
@@ -72,9 +77,30 @@ class GaitAnalyzer:
             return {
                 'gait_speed': 0.0,
                 'stride_count': 0,
+                'total_strides': self.total_strides,
                 'cadence': 0.0,
                 'initial_contacts': 0,
                 'status': 'insufficient_data',
+                'buffer_size': len(self.data_buffer),
+                'using_headgait': self.use_headgait
+            }
+        
+        # Check if there's actual movement (not just noise)
+        import numpy as np
+        recent_data = list(self.data_buffer)[-100:]  # Last 100 samples (5 seconds)
+        accel_z = np.array([d['accelZ'] for d in recent_data])
+        accel_variance = np.var(accel_z)
+        
+        # If variance is too low, person is probably stationary
+        MOTION_THRESHOLD = 0.1  # Adjust this value (higher = less sensitive)
+        if accel_variance < MOTION_THRESHOLD:
+            return {
+                'gait_speed': 0.0,
+                'stride_count': 0,
+                'total_strides': self.total_strides,
+                'cadence': 0.0,
+                'initial_contacts': 0,
+                'status': 'stationary',
                 'buffer_size': len(self.data_buffer),
                 'using_headgait': self.use_headgait
             }
@@ -85,6 +111,20 @@ class GaitAnalyzer:
                 metrics = self.headgait_processor.process_buffer(list(self.data_buffer))
                 metrics['buffer_size'] = len(self.data_buffer)
                 metrics['using_headgait'] = True
+                
+                # Track cumulative strides based on initial contacts (more reliable)
+                current_ic_count = metrics['initial_contacts']
+                if current_ic_count > self.last_ic_count:
+                    # New initial contacts detected - add them to total
+                    new_ics = current_ic_count - self.last_ic_count
+                    self.total_strides += (new_ics // 2)  # 2 ICs = 1 stride
+                    self.last_ic_count = current_ic_count
+                elif current_ic_count < self.last_ic_count:
+                    # Buffer rolled over, reset tracking
+                    self.last_ic_count = current_ic_count
+                
+                metrics['total_strides'] = self.total_strides
+                
                 self.last_metrics = metrics
                 return metrics
             except Exception as e:
@@ -105,10 +145,12 @@ class GaitAnalyzer:
         accel_z = np.array([d['accelZ'] for d in self.data_buffer])
         
         # Simple peak detection for initial contacts
+        # Increased threshold to reduce false positives from noise
         peaks, _ = find_peaks(
             accel_z,
-            height=np.mean(accel_z) + 0.5 * np.std(accel_z),
-            distance=int(self.sampling_rate * 0.4)  # Min 0.4s between steps
+            height=np.mean(accel_z) + 1.0 * np.std(accel_z),  # Increased from 0.5 to 1.0
+            distance=int(self.sampling_rate * 0.5),  # Min 0.5s between steps (was 0.4s)
+            prominence=0.2  # Added: peak must be prominent enough
         )
         
         # Calculate cadence
@@ -124,9 +166,25 @@ class GaitAnalyzer:
         movement_variance = np.std([d['accelZ'] for d in self.data_buffer])
         estimated_speed = min(movement_variance * 0.5, 4.0)
         
+        # If very little movement detected, set speed to 0
+        if len(peaks) < 2 or movement_variance < 0.3:
+            estimated_speed = 0.0
+        
+        # Track cumulative strides based on initial contacts
+        ic_count = len(peaks)
+        if ic_count > self.last_ic_count:
+            # New initial contacts detected
+            new_ics = ic_count - self.last_ic_count
+            self.total_strides += (new_ics // 2)  # 2 ICs = 1 stride
+            self.last_ic_count = ic_count
+        elif ic_count < self.last_ic_count:
+            # Buffer rolled over
+            self.last_ic_count = ic_count
+        
         metrics = {
             'gait_speed': round(estimated_speed, 2),
             'stride_count': stride_count,
+            'total_strides': self.total_strides,
             'cadence': round(cadence, 1),
             'initial_contacts': len(peaks),
             'status': 'analyzing_simple',
@@ -144,6 +202,13 @@ async def websocket_handler(websocket):
     """Handle WebSocket connections"""
     client_id = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
     print(f"🔗 Client connected: {client_id}")
+    
+    # Reset cumulative counters for new session
+    analyzer.total_strides = 0
+    analyzer.last_ic_count = 0
+    analyzer.session_start_time = None
+    analyzer.data_buffer.clear()
+    print(f"🔄 Reset counters for new session")
     
     try:
         sample_count = 0

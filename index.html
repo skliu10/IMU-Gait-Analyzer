@@ -68,8 +68,11 @@
                 <div id="cadenceValue" class="gait-metric-value">0.0 <span class="gait-metric-unit">steps/min</span></div>
             </div>
             <div class="gait-metric-card">
-                <div class="gait-metric-label">STRIDES</div>
-                <div id="stridesValue" class="gait-metric-value">0</div>
+                <div class="gait-metric-label">TOTAL STRIDES</div>
+                <div id="totalStridesValue" class="gait-metric-value">0</div>
+                <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                    Buffer: <span id="bufferStridesValue">0</span>
+                </div>
             </div>
         </div>
 
@@ -107,14 +110,6 @@
                 <div class="metric-card accent">
                     <div class="metric-label">ACCEL Z</div>
                     <div id="accelZValue" class="metric-value">0.00 m/s²</div>
-                </div>
-            </div>
-
-            <!-- 3D Orientation Visualization -->
-            <div class="card visualization-card">
-                <h2>HEAD ORIENTATION</h2>
-                <div class="orientation-container">
-                    <canvas id="orientationCanvas"></canvas>
                 </div>
             </div>
 

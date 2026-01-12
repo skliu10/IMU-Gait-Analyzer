@@ -920,7 +920,8 @@ const analysisStatusText = document.getElementById('analysisStatusText');
 const gaitMetricsGrid = document.getElementById('gaitMetricsGrid');
 const gaitSpeedValue = document.getElementById('gaitSpeedValue');
 const cadenceValue = document.getElementById('cadenceValue');
-const stridesValue = document.getElementById('stridesValue');
+const totalStridesValue = document.getElementById('totalStridesValue');
+const bufferStridesValue = document.getElementById('bufferStridesValue');
 
 // Event listeners
 toggleAnalysisBtn.addEventListener('click', toggleRealtimeAnalysis);
@@ -1017,7 +1018,8 @@ function updateGaitMetrics(metrics) {
     // Update UI
     gaitSpeedValue.innerHTML = `${metrics.gait_speed.toFixed(2)} <span class="gait-metric-unit">m/s</span>`;
     cadenceValue.innerHTML = `${metrics.cadence.toFixed(1)} <span class="gait-metric-unit">steps/min</span>`;
-    stridesValue.textContent = metrics.stride_count;
+    totalStridesValue.textContent = metrics.total_strides || 0;
+    bufferStridesValue.textContent = metrics.stride_count;
     
     // Update status text
     const usingHeadGait = metrics.using_headgait ? '🧠 HeadGait Models' : '⚡ Fallback Algorithm';
