@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Head Gait - Running Analysis</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="logo">HEAD GAIT</div>
+            <p class="subtitle">Real-time Running Analysis</p>
+        </header>
+
+        <!-- Connection Panel -->
+        <div class="connection-panel">
+            <button id="connectBtn" class="btn btn-primary">
+                <span class="btn-icon">🔵</span>
+                Connect to ESP32
+            </button>
+            <div class="status-indicator">
+                <span id="statusDot" class="status-dot disconnected"></span>
+                <span id="statusText" class="status-text">Disconnected</span>
+            </div>
+        </div>
+
+        <!-- Recording Panel -->
+        <div class="recording-panel">
+            <button id="startRecordBtn" class="btn btn-success btn-disabled" disabled>
+                <span class="btn-icon">⏺️</span>
+                Start Recording
+            </button>
+            <button id="stopRecordBtn" class="btn btn-danger btn-disabled" disabled>
+                <span class="btn-icon">⏹️</span>
+                Stop & Download
+            </button>
+            <div id="recordingInfo" class="recording-info" style="display: none;">
+                Recording: 0 samples (0.0s)
+            </div>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="error-message" style="display: none;">
+            <span class="error-icon">⚠️</span>
+            <span id="errorText"></span>
+            <button id="closeError" class="close-btn">×</button>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Metrics Grid -->
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-label">PITCH</div>
+                    <div id="pitchValue" class="metric-value">0.0°</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">YAW</div>
+                    <div id="yawValue" class="metric-value">0.0°</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">ROLL</div>
+                    <div id="rollValue" class="metric-value">0.0°</div>
+                </div>
+                <div class="metric-card accent">
+                    <div class="metric-label">MOTION INTENSITY</div>
+                    <div id="accelValue" class="metric-value">0.0 °/s</div>
+                </div>
+            </div>
+
+            <!-- 3D Orientation Visualization -->
+            <div class="card visualization-card">
+                <h2>HEAD ORIENTATION</h2>
+                <div class="orientation-container">
+                    <canvas id="orientationCanvas"></canvas>
+                </div>
+            </div>
+
+            <!-- Charts Grid -->
+            <div class="charts-grid">
+                <div class="card chart-card">
+                    <h3>PITCH</h3>
+                    <div class="chart-container">
+                        <canvas id="pitchChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card chart-card">
+                    <h3>YAW</h3>
+                    <div class="chart-container">
+                        <canvas id="yawChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card chart-card">
+                    <h3>ROLL</h3>
+                    <div class="chart-container">
+                        <canvas id="rollChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card chart-card full-width">
+                    <h3>MOTION INTENSITY</h3>
+                    <div class="chart-container">
+                        <canvas id="accelerationChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer>
+            <p>HEAD GAIT © 2026 | Powered by Web Bluetooth</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+

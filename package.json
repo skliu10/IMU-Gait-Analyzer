@@ -1,0 +1,19 @@
+{
+  "name": "imu-ble-visualizer",
+  "version": "1.0.0",
+  "description": "Web app for visualizing IMU data from ESP32-C3 via Bluetooth Low Energy",
+  "main": "index.html",
+  "scripts": {
+    "serve": "python3 -m http.server 8080"
+  },
+  "keywords": [
+    "BLE",
+    "IMU",
+    "ESP32",
+    "visualization",
+    "web-bluetooth"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+
