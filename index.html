@@ -69,8 +69,16 @@
                     <div id="rollValue" class="metric-value">0.0°</div>
                 </div>
                 <div class="metric-card accent">
-                    <div class="metric-label">MOTION INTENSITY</div>
-                    <div id="accelValue" class="metric-value">0.0 °/s</div>
+                    <div class="metric-label">ACCEL X</div>
+                    <div id="accelXValue" class="metric-value">0.00 m/s²</div>
+                </div>
+                <div class="metric-card accent">
+                    <div class="metric-label">ACCEL Y</div>
+                    <div id="accelYValue" class="metric-value">0.00 m/s²</div>
+                </div>
+                <div class="metric-card accent">
+                    <div class="metric-label">ACCEL Z</div>
+                    <div id="accelZValue" class="metric-value">0.00 m/s²</div>
                 </div>
             </div>
 
@@ -105,10 +113,24 @@
                     </div>
                 </div>
 
-                <div class="card chart-card full-width">
-                    <h3>MOTION INTENSITY</h3>
+                <div class="card chart-card">
+                    <h3>ACCELERATION X</h3>
                     <div class="chart-container">
-                        <canvas id="accelerationChart"></canvas>
+                        <canvas id="accelXChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card chart-card">
+                    <h3>ACCELERATION Y</h3>
+                    <div class="chart-container">
+                        <canvas id="accelYChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card chart-card">
+                    <h3>ACCELERATION Z</h3>
+                    <div class="chart-container">
+                        <canvas id="accelZChart"></canvas>
                     </div>
                 </div>
             </div>

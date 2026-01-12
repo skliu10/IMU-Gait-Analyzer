@@ -18,7 +18,9 @@ const chartData = {
     pitch: [],
     yaw: [],
     roll: [],
-    acceleration: [],
+    accelX: [],
+    accelY: [],
+    accelZ: [],
     timestamps: []
 };
 
@@ -37,8 +39,12 @@ let previousOrientation = {
     timestamp: Date.now()
 };
 
-// Current acceleration value
-let currentAcceleration = 0;
+// Current acceleration values
+let currentAcceleration = {
+    x: 0,
+    y: 0,
+    z: 0
+};
 
 // Calibration baseline (for zeroing)
 let calibrationBaseline = {
@@ -286,7 +292,7 @@ function parseIMUData(data) {
             const accelY = parseFloat(values[4]);
             const accelZ = parseFloat(values[5]);
             
-            if (!isNaN(pitch) && !isNaN(yaw) && !isNaN(roll)) {
+            if (!isNaN(pitch) && !isNaN(yaw) && !isNaN(roll) && !isNaN(accelX) && !isNaN(accelY) && !isNaN(accelZ)) {
                 // Store raw acceleration data for HeadGait-compatible export
                 rawSensorData = { accelX, accelY, accelZ };
                 
@@ -295,8 +301,8 @@ function parseIMUData(data) {
                     calibrateZero(pitch, yaw, roll);
                 }
                 
-                // Update with orientation data
-                updateIMUData(pitch, yaw, roll);
+                // Update with orientation and acceleration data
+                updateIMUData(pitch, yaw, roll, accelX, accelY, accelZ);
             }
         }
     } catch (error) {
@@ -363,20 +369,17 @@ function applyCalibration(rawPitch, rawYaw, rawRoll) {
 }
 
 // Update IMU data
-function updateIMUData(rawPitch, rawYaw, rawRoll) {
+function updateIMUData(rawPitch, rawYaw, rawRoll, accelX, accelY, accelZ) {
     // Apply calibration to get relative values
     const { pitch, yaw, roll } = applyCalibration(rawPitch, rawYaw, rawRoll);
     
-    // Calculate acceleration from orientation change
-    const acceleration = calculateAcceleration(pitch, yaw, roll);
-    
-    // Update current orientation
+    // Update current orientation and acceleration
     currentOrientation = { pitch, yaw, roll };
-    currentAcceleration = acceleration;
+    currentAcceleration = { x: accelX, y: accelY, z: accelZ };
     
     // Record data if recording is active
     if (isRecording) {
-        recordDataPoint(pitch, yaw, roll, acceleration);
+        recordDataPoint(pitch, yaw, roll, accelX, accelY, accelZ);
     }
     
     // Update angle displays
@@ -384,9 +387,15 @@ function updateIMUData(rawPitch, rawYaw, rawRoll) {
     document.getElementById('yawValue').textContent = `${yaw.toFixed(1)}°`;
     document.getElementById('rollValue').textContent = `${roll.toFixed(1)}°`;
     
-    // Update acceleration display
-    if (document.getElementById('accelValue')) {
-        document.getElementById('accelValue').textContent = `${acceleration.toFixed(2)} °/s`;
+    // Update acceleration displays
+    if (document.getElementById('accelXValue')) {
+        document.getElementById('accelXValue').textContent = `${accelX.toFixed(2)} m/s²`;
+    }
+    if (document.getElementById('accelYValue')) {
+        document.getElementById('accelYValue').textContent = `${accelY.toFixed(2)} m/s²`;
+    }
+    if (document.getElementById('accelZValue')) {
+        document.getElementById('accelZValue').textContent = `${accelZ.toFixed(2)} m/s²`;
     }
     
     // Update chart data
@@ -395,7 +404,9 @@ function updateIMUData(rawPitch, rawYaw, rawRoll) {
     chartData.pitch.push(pitch);
     chartData.yaw.push(yaw);
     chartData.roll.push(roll);
-    chartData.acceleration.push(acceleration);
+    chartData.accelX.push(accelX);
+    chartData.accelY.push(accelY);
+    chartData.accelZ.push(accelZ);
     
     // Keep only last maxDataPoints
     if (chartData.timestamps.length > maxDataPoints) {
@@ -403,7 +414,9 @@ function updateIMUData(rawPitch, rawYaw, rawRoll) {
         chartData.pitch.shift();
         chartData.yaw.shift();
         chartData.roll.shift();
-        chartData.acceleration.shift();
+        chartData.accelX.shift();
+        chartData.accelY.shift();
+        chartData.accelZ.shift();
     }
     
     // Update visualizations
@@ -412,7 +425,7 @@ function updateIMUData(rawPitch, rawYaw, rawRoll) {
 }
 
 // Initialize charts
-let pitchChart, yawChart, rollChart, accelerationChart;
+let pitchChart, yawChart, rollChart, accelXChart, accelYChart, accelZChart;
 
 function initializeCharts() {
     const chartConfig = (label, color, data) => ({
@@ -488,74 +501,15 @@ function initializeCharts() {
     yawChart = new Chart(document.getElementById('yawChart'), chartConfig('Yaw', '#60efff', chartData.yaw));
     rollChart = new Chart(document.getElementById('rollChart'), chartConfig('Roll', '#ffd60a', chartData.roll));
     
-    // Acceleration chart (motion intensity)
-    if (document.getElementById('accelerationChart')) {
-        accelerationChart = new Chart(document.getElementById('accelerationChart'), {
-            type: 'line',
-            data: {
-                labels: chartData.timestamps,
-                datasets: [{
-                    label: 'Motion Intensity',
-                    data: chartData.acceleration,
-                    borderColor: '#00ff87',
-                    backgroundColor: '#00ff8715',
-                    borderWidth: 3,
-                    tension: 0.4,
-                    fill: true,
-                    pointRadius: 0,
-                    pointHoverRadius: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                animation: {
-                    duration: 0
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: {
-                            color: 'rgba(255, 255, 255, 0.05)',
-                            drawBorder: false
-                        },
-                        ticks: {
-                            color: '#666',
-                            font: {
-                                size: 11,
-                                family: 'Inter'
-                            },
-                            callback: function(value) {
-                                return value.toFixed(0);
-                            }
-                        }
-                    },
-                    x: {
-                        grid: {
-                            display: false
-                        },
-                        ticks: {
-                            color: '#666',
-                            font: {
-                                size: 10,
-                                family: 'Inter'
-                            },
-                            maxRotation: 0,
-                            minRotation: 0,
-                            maxTicksLimit: 6
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        enabled: false
-                    }
-                }
-            }
-        });
+    // Acceleration charts
+    if (document.getElementById('accelXChart')) {
+        accelXChart = new Chart(document.getElementById('accelXChart'), chartConfig('Accel X', '#ff3b5c', chartData.accelX));
+    }
+    if (document.getElementById('accelYChart')) {
+        accelYChart = new Chart(document.getElementById('accelYChart'), chartConfig('Accel Y', '#60efff', chartData.accelY));
+    }
+    if (document.getElementById('accelZChart')) {
+        accelZChart = new Chart(document.getElementById('accelZChart'), chartConfig('Accel Z', '#00ff87', chartData.accelZ));
     }
 }
 
@@ -564,9 +518,9 @@ function updateCharts() {
     pitchChart.update('none');
     yawChart.update('none');
     rollChart.update('none');
-    if (accelerationChart) {
-        accelerationChart.update('none');
-    }
+    if (accelXChart) accelXChart.update('none');
+    if (accelYChart) accelYChart.update('none');
+    if (accelZChart) accelZChart.update('none');
 }
 
 // Recording Functions
@@ -609,18 +563,16 @@ function stopRecording() {
     console.log('Recording stopped. Data points:', recordedData.length);
 }
 
-function recordDataPoint(pitch, yaw, roll, acceleration) {
+function recordDataPoint(pitch, yaw, roll, accelX, accelY, accelZ) {
     const timestamp = Date.now() - recordingStartTime;
     const dataPoint = {
         timestamp: timestamp,
         pitch: pitch,
         yaw: yaw,
         roll: roll,
-        acceleration: acceleration,
-        // Include raw sensor data for HeadGait processing
-        accelX: rawSensorData.accelX,
-        accelY: rawSensorData.accelY,
-        accelZ: rawSensorData.accelZ
+        accelX: accelX,
+        accelY: accelY,
+        accelZ: accelZ
     };
     
     recordedData.push(dataPoint);
@@ -635,11 +587,11 @@ function recordDataPoint(pitch, yaw, roll, acceleration) {
 
 function downloadCSV() {
     // Create CSV header - HeadGait compatible format
-    let csv = 'Timestamp(ms),Pitch(degrees),Yaw(degrees),Roll(degrees),Acceleration(deg/s),AccelX(m/s²),AccelY(m/s²),AccelZ(m/s²)\n';
+    let csv = 'Timestamp(ms),Pitch(deg),Yaw(deg),Roll(deg),AccelX(m/s²),AccelY(m/s²),AccelZ(m/s²)\n';
     
     // Add data rows
     recordedData.forEach(point => {
-        csv += `${point.timestamp},${point.pitch.toFixed(3)},${point.yaw.toFixed(3)},${point.roll.toFixed(3)},${point.acceleration.toFixed(3)},${point.accelX.toFixed(3)},${point.accelY.toFixed(3)},${point.accelZ.toFixed(3)}\n`;
+        csv += `${point.timestamp},${point.pitch.toFixed(3)},${point.yaw.toFixed(3)},${point.roll.toFixed(3)},${point.accelX.toFixed(3)},${point.accelY.toFixed(3)},${point.accelZ.toFixed(3)}\n`;
     });
     
     // Create blob and download
