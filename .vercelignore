@@ -1,5 +1,5 @@
-node_modules
-.DS_Store
-*.log
-esp32_example.ino
 README.md
+esp32_example.ino
+package.json
+.git
+.gitignore
