@@ -898,7 +898,10 @@ function rotatePoint(x, y, angleX, angleZ) {
 // ====================================================================================
 
 // WebSocket configuration
-const WS_URL = 'ws://localhost:8000';
+// Dev override: use localhost when running locally, Render when deployed
+const WS_URL = window.location.hostname === 'localhost'
+  ? 'ws://localhost:8000'
+  : 'https://imu-gait-analyzer.onrender.com';
 
 // WebSocket state
 let websocket = null;
