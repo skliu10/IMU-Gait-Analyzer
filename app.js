@@ -448,74 +448,66 @@ function updateIMUData(rawPitch, rawYaw, rawRoll, accelX, accelY, accelZ) {
 let pitchChart, yawChart, rollChart, accelXChart, accelYChart, accelZChart;
 
 function initializeCharts() {
-    const chartConfig = (label, color, data) => ({
-        type: 'line',
-        data: {
-            labels: chartData.timestamps,
-            datasets: [{
-                label: label,
-                data: data,
-                borderColor: color,
-                backgroundColor: color + '15',
-                borderWidth: 3,
-                tension: 0.4,
-                fill: true,
-                pointRadius: 0,
-                pointHoverRadius: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            animation: {
-                duration: 0
+    const chartConfig = (label, color, data) => {
+        const isAccel = label.toLowerCase().includes('accel');
+        const unit = isAccel ? ' m/s²' : '°';
+        return {
+            type: 'line',
+            data: {
+                labels: chartData.timestamps,
+                datasets: [{
+                    label: label,
+                    data: data,
+                    borderColor: color,
+                    backgroundColor: color + '15',
+                    borderWidth: 3,
+                    tension: 0.35,
+                    fill: true,
+                    pointRadius: 0,
+                    pointHoverRadius: 0
+                }]
             },
-            scales: {
-                y: {
-                    beginAtZero: false,
-                    suggestedMin: -180,
-                    suggestedMax: 180,
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.05)',
-                        drawBorder: false
-                    },
-                    ticks: {
-                        color: '#666',
-                        font: {
-                            size: 11,
-                            family: 'Inter'
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                animation: { duration: 0 },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        grace: '10%',
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)',
+                            drawBorder: false
                         },
-                        callback: function(value) {
-                            return value + '°';
+                        ticks: {
+                            color: '#6b635c',
+                            font: { size: 11, family: 'Inter' },
+                            callback: function(value) {
+                                return `${value}${unit}`;
+                            }
+                        }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            color: '#6b635c',
+                            font: { size: 10, family: 'Inter' },
+                            maxRotation: 0,
+                            minRotation: 0,
+                            maxTicksLimit: 6
                         }
                     }
                 },
-                x: {
-                    grid: {
-                        display: false
-                    },
-                    ticks: {
-                        color: '#666',
-                        font: {
-                            size: 10,
-                            family: 'Inter'
-                        },
-                        maxRotation: 0,
-                        minRotation: 0,
-                        maxTicksLimit: 6
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    display: false
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: false }
                 },
-                tooltip: {
-                    enabled: false
+                elements: {
+                    point: { radius: 0 }
                 }
             }
-        }
-    });
+        };
+    };
     
     pitchChart = new Chart(document.getElementById('pitchChart'), chartConfig('Pitch', '#ff3b5c', chartData.pitch));
     yawChart = new Chart(document.getElementById('yawChart'), chartConfig('Yaw', '#60efff', chartData.yaw));
