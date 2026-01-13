@@ -132,19 +132,14 @@ async function connect() {
         console.log('Starting notifications...');
         await bleCharacteristic.startNotifications();
         bleCharacteristic.addEventListener('characteristicvaluechanged', handleCharacteristicValueChanged);
-        console.log('✅ Notifications started - waiting for data...');
-        console.log('⚠️ If no data appears:');
-        console.log('  1. Check ESP32 is powered on and running');
-        console.log('  2. Open ESP32 serial monitor (115200 baud)');
-        console.log('  3. Look for "Sent: ..." messages');
-        console.log('  4. Try power cycling the ESP32');
+        console.log('Notifications started');
         
         // Handle disconnection
         bleDevice.addEventListener('gattserverdisconnected', handleDisconnection);
         
         isConnected = true;
         updateConnectionUI();
-        showStatus('Connected - Waiting for data...', 'connected');
+        showStatus('Connected', 'connected');
         hideError();
         
     } catch (error) {
@@ -272,7 +267,6 @@ function hideError() {
 // Handle characteristic value changed
 function handleCharacteristicValueChanged(event) {
     const value = new TextDecoder().decode(event.target.value);
-    console.log('📡 Raw BLE data received:', value);
     parseIMUData(value);
 }
 
@@ -288,7 +282,6 @@ function parseIMUData(data) {
     try {
         // Expected format: "yaw,pitch,roll,accelX,accelY,accelZ\n"
         const values = data.trim().split(',');
-        console.log('📊 Parsed values:', values, 'Length:', values.length);
         
         // Check if we have at least 6 values (yaw, pitch, roll, accelX, accelY, accelZ)
         if (values.length >= 6) {
@@ -299,11 +292,7 @@ function parseIMUData(data) {
             const accelY = parseFloat(values[4]);
             const accelZ = parseFloat(values[5]);
             
-            console.log('🔢 Values:', { yaw, pitch, roll, accelX, accelY, accelZ });
-            
             if (!isNaN(pitch) && !isNaN(yaw) && !isNaN(roll) && !isNaN(accelX) && !isNaN(accelY) && !isNaN(accelZ)) {
-                console.log('✅ Valid IMU data, updating display');
-                
                 // Store raw acceleration data for HeadGait-compatible export
                 rawSensorData = { accelX, accelY, accelZ };
                 
@@ -314,14 +303,10 @@ function parseIMUData(data) {
                 
                 // Update with orientation and acceleration data
                 updateIMUData(pitch, yaw, roll, accelX, accelY, accelZ);
-            } else {
-                console.warn('⚠️ Invalid data - contains NaN values');
             }
-        } else {
-            console.warn('⚠️ Insufficient data - expected 6 values, got', values.length);
         }
     } catch (error) {
-        console.error('❌ Error parsing IMU data:', error);
+        console.error('Error parsing IMU data:', error);
     }
 }
 
@@ -395,11 +380,6 @@ function updateIMUData(rawPitch, rawYaw, rawRoll, accelX, accelY, accelZ) {
     // Record data if recording is active
     if (isRecording) {
         recordDataPoint(pitch, yaw, roll, accelX, accelY, accelZ);
-    }
-    
-    // Send data to analysis server if connected
-    if (isAnalyzing) {
-        sendToAnalysisServer(pitch, yaw, roll, accelX, accelY, accelZ);
     }
     
     // Update angle displays
@@ -669,25 +649,6 @@ function updateConnectionUI() {
     
     // Update recording buttons when connection changes
     updateRecordingUI();
-    
-    // Update analysis button when connection changes
-    updateAnalysisUI();
-}
-
-// Update analysis UI based on connection status
-function updateAnalysisUI() {
-    if (isConnected) {
-        toggleAnalysisBtn.disabled = false;
-        toggleAnalysisBtn.classList.remove('btn-disabled');
-    } else {
-        toggleAnalysisBtn.disabled = true;
-        toggleAnalysisBtn.classList.add('btn-disabled');
-        
-        // Stop analysis if running
-        if (isAnalyzing) {
-            stopRealtimeAnalysis();
-        }
-    }
 }
 
 // Initialize orientation canvas
@@ -893,164 +854,3 @@ function rotatePoint(x, y, angleX, angleZ) {
     return { x: x1, y: y2 };
 }
 
-// ====================================================================================
-// REAL-TIME GAIT ANALYSIS (WebSocket)
-// ====================================================================================
-
-// WebSocket configuration
-// Dev override: use localhost when running locally, Render when deployed
-const WS_URL = window.location.hostname === 'localhost'
-  ? 'ws://localhost:8000'
-  : 'https://imu-gait-analyzer.onrender.com';
-
-// WebSocket state
-let websocket = null;
-let isAnalyzing = false;
-let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 5;
-
-// Gait metrics
-let gaitMetrics = {
-    gait_speed: 0.0,
-    cadence: 0.0,
-    stride_count: 0
-};
-
-// UI Elements
-const toggleAnalysisBtn = document.getElementById('toggleAnalysisBtn');
-const analysisStatus = document.getElementById('analysisStatus');
-const analysisStatusText = document.getElementById('analysisStatusText');
-const gaitMetricsGrid = document.getElementById('gaitMetricsGrid');
-const gaitSpeedValue = document.getElementById('gaitSpeedValue');
-const cadenceValue = document.getElementById('cadenceValue');
-const totalStridesValue = document.getElementById('totalStridesValue');
-const bufferStridesValue = document.getElementById('bufferStridesValue');
-
-// Event listeners
-toggleAnalysisBtn.addEventListener('click', toggleRealtimeAnalysis);
-
-// Toggle real-time analysis
-function toggleRealtimeAnalysis() {
-    if (isAnalyzing) {
-        stopRealtimeAnalysis();
-    } else {
-        startRealtimeAnalysis();
-    }
-}
-
-// Start real-time analysis
-function startRealtimeAnalysis() {
-    if (!isConnected) {
-        showError('Please connect to ESP32 first');
-        return;
-    }
-    
-    if (isAnalyzing) return;
-    
-    try {
-        // Connect to WebSocket server
-        websocket = new WebSocket(WS_URL);
-        
-        websocket.onopen = () => {
-            console.log('✅ Connected to analysis server');
-            isAnalyzing = true;
-            reconnectAttempts = 0;
-            
-            // Update UI
-            toggleAnalysisBtn.textContent = 'Stop Analysis';
-            toggleAnalysisBtn.classList.add('active');
-            analysisStatus.style.display = 'flex';
-            analysisStatusText.textContent = 'Analyzing gait...';
-            gaitMetricsGrid.style.display = 'grid';
-        };
-        
-        websocket.onmessage = (event) => {
-            try {
-                const metrics = JSON.parse(event.data);
-                updateGaitMetrics(metrics);
-            } catch (error) {
-                console.error('Error parsing metrics:', error);
-            }
-        };
-        
-        websocket.onerror = (error) => {
-            console.error('❌ WebSocket error:', error);
-            showError('Error connecting to analysis server. Ensure backend is running.');
-        };
-        
-        websocket.onclose = () => {
-            console.log('🔌 WebSocket closed');
-            
-            if (isAnalyzing && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-                reconnectAttempts++;
-                console.log(`🔄 Reconnecting... (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
-                setTimeout(() => startRealtimeAnalysis(), 2000);
-            } else {
-                stopRealtimeAnalysis();
-            }
-        };
-        
-    } catch (error) {
-        console.error('Error starting analysis:', error);
-        showError('Failed to start analysis: ' + error.message);
-    }
-}
-
-// Stop real-time analysis
-function stopRealtimeAnalysis() {
-    if (websocket) {
-        websocket.close();
-        websocket = null;
-    }
-    
-    isAnalyzing = false;
-    
-    // Update UI
-    toggleAnalysisBtn.textContent = 'Start Real-time Analysis';
-    toggleAnalysisBtn.classList.remove('active');
-    analysisStatus.style.display = 'none';
-    gaitMetricsGrid.style.display = 'none';
-    
-    console.log('⏹️  Real-time analysis stopped');
-}
-
-// Update gait metrics display
-function updateGaitMetrics(metrics) {
-    gaitMetrics = metrics;
-    
-    // Update UI
-    gaitSpeedValue.innerHTML = `${metrics.gait_speed.toFixed(2)} <span class="gait-metric-unit">m/s</span>`;
-    cadenceValue.innerHTML = `${metrics.cadence.toFixed(1)} <span class="gait-metric-unit">steps/min</span>`;
-    totalStridesValue.textContent = metrics.total_strides || 0;
-    bufferStridesValue.textContent = metrics.stride_count;
-    
-    // Update status text
-    const usingHeadGait = metrics.using_headgait ? '🧠 HeadGait Models' : '⚡ Fallback Algorithm';
-    analysisStatusText.textContent = `${usingHeadGait} | Buffer: ${metrics.buffer_size} samples`;
-    
-    // Log metrics periodically
-    if (metrics.status === 'analyzing' || metrics.status === 'analyzing_simple') {
-        console.log(`📊 Speed: ${metrics.gait_speed} m/s | Cadence: ${metrics.cadence} steps/min | Strides: ${metrics.stride_count}`);
-    }
-}
-
-// Send IMU data to analysis server
-function sendToAnalysisServer(pitch, yaw, roll, accelX, accelY, accelZ) {
-    if (websocket && websocket.readyState === WebSocket.OPEN) {
-        const data = {
-            pitch: pitch,
-            yaw: yaw,
-            roll: roll,
-            accelX: accelX,
-            accelY: accelY,
-            accelZ: accelZ,
-            timestamp: Date.now()
-        };
-        
-        try {
-            websocket.send(JSON.stringify(data));
-        } catch (error) {
-            console.error('Error sending data to server:', error);
-        }
-    }
-}

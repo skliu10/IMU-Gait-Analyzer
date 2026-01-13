@@ -45,37 +45,6 @@
             </div>
         </div>
 
-        <!-- Real-time Analysis Panel -->
-        <div class="analysis-panel">
-            <button id="toggleAnalysisBtn" class="btn btn-analysis btn-disabled" disabled>
-                <span class="btn-icon">🧠</span>
-                Start Real-time Analysis
-            </button>
-            <div id="analysisStatus" class="analysis-status" style="display: none;">
-                <span class="status-dot analyzing"></span>
-                <span id="analysisStatusText">Analyzing...</span>
-            </div>
-        </div>
-
-        <!-- Gait Metrics Grid -->
-        <div id="gaitMetricsGrid" class="gait-metrics-grid" style="display: none;">
-            <div class="gait-metric-card">
-                <div class="gait-metric-label">GAIT SPEED</div>
-                <div id="gaitSpeedValue" class="gait-metric-value">0.00 <span class="gait-metric-unit">m/s</span></div>
-            </div>
-            <div class="gait-metric-card">
-                <div class="gait-metric-label">CADENCE</div>
-                <div id="cadenceValue" class="gait-metric-value">0.0 <span class="gait-metric-unit">steps/min</span></div>
-            </div>
-            <div class="gait-metric-card">
-                <div class="gait-metric-label">TOTAL STRIDES</div>
-                <div id="totalStridesValue" class="gait-metric-value">0</div>
-                <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                    Buffer: <span id="bufferStridesValue">0</span>
-                </div>
-            </div>
-        </div>
-
         <!-- Error Message -->
         <div id="errorMessage" class="error-message" style="display: none;">
             <span class="error-icon">⚠️</span>
@@ -110,6 +79,14 @@
                 <div class="metric-card accent">
                     <div class="metric-label">ACCEL Z</div>
                     <div id="accelZValue" class="metric-value">0.00 m/s²</div>
+                </div>
+            </div>
+
+            <!-- 3D Orientation Visualization -->
+            <div class="card visualization-card">
+                <h2>HEAD ORIENTATION</h2>
+                <div class="orientation-container">
+                    <canvas id="orientationCanvas"></canvas>
                 </div>
             </div>
 
