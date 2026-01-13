@@ -3,6 +3,7 @@ Real-time Gait Analysis WebSocket Server
 Integrates with HeadGait models for gait speed estimation
 """
 
+import os
 import asyncio
 import websockets
 import json
@@ -22,7 +23,8 @@ except ImportError as e:
     HEADGAIT_AVAILABLE = False
 
 # Configuration
-PORT = 8000
+# Render/Heroku-style dynamic port; default to 8000 for local dev
+PORT = int(os.getenv("PORT", 8000))
 BUFFER_SIZE = 500  # Number of samples (25 seconds at 20Hz)
 SAMPLING_RATE = 20  # Hz
 UPDATE_INTERVAL = 0.5  # Process every 0.5 seconds
