@@ -260,7 +260,7 @@ async def main():
     print("=" * 60)
     print("🚀 HEAD GAIT - Real-time Gait Analysis Server")
     print("=" * 60)
-    print(f"📡 WebSocket server: ws://localhost:{PORT}")
+    print(f"📡 WebSocket server: ws://0.0.0.0:{PORT}")
     print(f"📊 Buffer size: {BUFFER_SIZE} samples ({BUFFER_SIZE/SAMPLING_RATE:.1f}s)")
     print(f"🎯 Sampling rate: {SAMPLING_RATE} Hz")
     
@@ -278,7 +278,7 @@ async def main():
     
     async with websockets.serve(
         websocket_handler,
-        "localhost",
+        "0.0.0.0",  # Bind to all interfaces for Render/hosting
         PORT,
         ping_interval=20,
         ping_timeout=10
