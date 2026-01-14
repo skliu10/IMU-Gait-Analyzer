@@ -105,6 +105,35 @@ header {
     animation: pulse-accent 2s ease-in-out infinite;
 }
 
+/* Calibration */
+.calibration-inline {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 240px;
+}
+
+.calibration-title {
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: var(--ink);
+}
+
+.calibration-subtitle {
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.calibration-status {
+    background: rgba(194, 122, 67, 0.1);
+    border: 1px solid rgba(194, 122, 67, 0.25);
+    color: var(--accent-dark);
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-weight: 600;
+    width: 100%;
+}
+
 @keyframes pulse-accent {
     0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--glow); }
     50% { opacity: 0.8; box-shadow: 0 0 0 8px rgba(194, 122, 67, 0); }

@@ -28,6 +28,11 @@
                 <span id="statusDot" class="status-dot disconnected"></span>
                 <span id="statusText" class="status-text">Disconnected</span>
             </div>
+            <button id="calibrateBtn" class="btn btn-analysis btn-disabled" disabled>
+                <span class="btn-icon">🧭</span>
+                Calibrate (10s)
+            </button>
+            <div id="calibrationStatus" class="calibration-status" style="display: none;"></div>
         </div>
 
         <!-- Recording Panel -->
@@ -72,6 +77,13 @@
                 <div id="totalStridesValue" class="gait-metric-value">0</div>
                 <div style="font-size: 12px; color: #666; margin-top: 5px;">
                     Buffer: <span id="bufferStridesValue">0</span>
+                </div>
+            </div>
+            <div class="gait-metric-card">
+                <div class="gait-metric-label">TILT (YAW AVG)</div>
+                <div id="tiltValue" class="gait-metric-value">0.0 <span class="gait-metric-unit">°</span></div>
+                <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                    Smoothed yaw, updated every second
                 </div>
             </div>
         </div>
@@ -154,6 +166,12 @@
                     <h3>ACCELERATION Z</h3>
                     <div class="chart-container">
                         <canvas id="accelZChart"></canvas>
+                    </div>
+                </div>
+                <div class="card chart-card">
+                    <h3>TILT (FILTERED YAW)</h3>
+                    <div class="chart-container">
+                        <canvas id="tiltChart"></canvas>
                     </div>
                 </div>
             </div>
