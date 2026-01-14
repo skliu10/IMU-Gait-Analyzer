@@ -207,6 +207,7 @@ header {
 .btn-success { background: #3d6b5a; }
 .btn-danger { background: #b23b3b; }
 .btn-analysis { background: var(--accent-dark); color: #fdf8f2; }
+.btn-switch { min-width: 130px; justify-content: center; }
 
 .btn:hover:not(:disabled) {
     transform: translateY(-2px);

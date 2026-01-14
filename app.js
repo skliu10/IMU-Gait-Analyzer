@@ -83,6 +83,9 @@ let lastTiltUpdate = 0;
 let currentTiltFiltered = 0;
 let currentTiltAvg = 0;
 
+// Control switch state
+let controlSwitchOn = false;
+
 // Apply a 3rd-order Butterworth low-pass filter to yaw
 function applyButterworth(yawVal) {
     // Shift history: x[n-1..3], y[n-1..3]
@@ -106,8 +109,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeOrientationCanvas();
     checkBluetoothSupport();
     
-    // Display calibration message
-    showStatus('Ready - will calibrate on first data', 'disconnected');
+    // Initial status
+    showStatus('Disconnected', 'disconnected');
 });
 
 // Check if Web Bluetooth is supported
@@ -125,6 +128,7 @@ function initializeUI() {
     document.getElementById('startRecordBtn').addEventListener('click', startRecording);
     document.getElementById('stopRecordBtn').addEventListener('click', stopRecording);
     document.getElementById('calibrateBtn').addEventListener('click', startCalibration);
+    document.getElementById('controlSwitchBtn').addEventListener('click', toggleControlSwitch);
     
     // Initially disable recording buttons
     updateRecordingUI();
@@ -309,6 +313,7 @@ async function disconnect() {
             clearInterval(calibrationTimer);
             calibrationTimer = null;
         }
+        controlSwitchOn = false;
         
         isConnected = false;
         updateConnectionUI();
@@ -390,11 +395,6 @@ function parseIMUData(data) {
                 // Store raw acceleration data for HeadGait-compatible export
                 rawSensorData = { accelX, accelY, accelZ };
                 
-                // Auto-calibrate on first data received
-                if (!calibrationBaseline.isCalibrated) {
-                    calibrateZero(pitch, yaw, roll);
-                }
-                
                 // Update with orientation and acceleration data
                 updateIMUData(pitch, yaw, roll, accelX, accelY, accelZ);
             } else {
@@ -450,7 +450,6 @@ function calibrateZero(rawPitch, rawYaw, rawRoll) {
     };
     
     console.log('Calibrated to zero:', calibrationBaseline);
-    showStatus('Calibrated - Metrics zeroed', 'connected');
 }
 
 // Apply calibration (subtract baseline)
@@ -545,7 +544,9 @@ function updateIMUData(rawPitch, rawYaw, rawRoll, accelX, accelY, accelZ) {
     
     // Update visualizations
     updateCharts();
-    updateOrientationCanvas();
+    if (orientationAvailable) {
+        updateOrientationCanvas();
+    }
 }
 
 // Initialize charts
@@ -555,6 +556,8 @@ function initializeCharts() {
     const chartConfig = (label, color, data) => {
         const isAccel = label.toLowerCase().includes('accel');
         const unit = isAccel ? ' m/s²' : '°';
+        const yMin = isAccel ? -20 : -180;
+        const yMax = isAccel ? 20 : 180;
         return {
             type: 'line',
             data: {
@@ -578,7 +581,8 @@ function initializeCharts() {
                 scales: {
                     y: {
                         beginAtZero: false,
-                        grace: '10%',
+                        suggestedMin: yMin,
+                        suggestedMax: yMax,
                         grid: {
                             color: 'rgba(0, 0, 0, 0.05)',
                             drawBorder: false
@@ -711,8 +715,8 @@ function recordDataPoint(pitch, yaw, roll, accelX, accelY, accelZ) {
     recordedData.push(dataPoint);
     
     // Update recording info
-    if (document.getElementById('recordingInfo')) {
-        const duration = (timestamp / 1000).toFixed(1);
+    if (document.getElementById('recordingInfo') && recordingStartTime) {
+        const duration = ((Date.now() - recordingStartTime) / 1000).toFixed(1);
         document.getElementById('recordingInfo').textContent = 
             `Recording: ${recordedData.length} samples (${duration}s)`;
     }
@@ -788,6 +792,16 @@ function updateCalibrationUI() {
     }
 }
 
+function updateControlUI() {
+    const btn = document.getElementById('controlSwitchBtn');
+    if (!btn) return;
+    const allowControl = isConnected && calibrationBaseline.isCalibrated && !isCalibrating;
+    btn.disabled = !allowControl;
+    btn.classList.toggle('btn-disabled', !allowControl);
+    btn.classList.add('btn-switch');
+    btn.innerHTML = `<span class="btn-icon">⏻</span> Switch: ${controlSwitchOn ? 'On' : 'Off'}`;
+}
+
 // Update connection UI
 function updateConnectionUI() {
     const connectBtn = document.getElementById('connectBtn');
@@ -809,6 +823,9 @@ function updateConnectionUI() {
     
     // Update calibration controls
     updateCalibrationUI();
+    
+    // Update control switch
+    updateControlUI();
 }
 
 // Update analysis UI based on connection status
@@ -830,10 +847,16 @@ function updateAnalysisUI() {
 
 // Initialize orientation canvas
 let orientationCanvas, orientationCtx;
+let orientationAvailable = false;
 
 function initializeOrientationCanvas() {
     orientationCanvas = document.getElementById('orientationCanvas');
+    if (!orientationCanvas) {
+        orientationAvailable = false;
+        return;
+    }
     orientationCtx = orientationCanvas.getContext('2d');
+    orientationAvailable = true;
     
     // Set canvas size
     const container = orientationCanvas.parentElement;
@@ -842,6 +865,7 @@ function initializeOrientationCanvas() {
     
     // Handle window resize
     window.addEventListener('resize', () => {
+        if (!orientationAvailable) return;
         orientationCanvas.width = container.clientWidth;
         orientationCanvas.height = 300;
         updateOrientationCanvas();
@@ -853,6 +877,7 @@ function initializeOrientationCanvas() {
 
 // Update orientation canvas
 function updateOrientationCanvas() {
+    if (!orientationAvailable || !orientationCanvas || !orientationCtx) return;
     const ctx = orientationCtx;
     const width = orientationCanvas.width;
     const height = orientationCanvas.height;
@@ -1086,10 +1111,6 @@ function startRealtimeAnalysis() {
         showError('Please complete calibration before starting analysis');
         return;
     }
-    if (isCalibrating) {
-        showError('Finish calibration before starting analysis');
-        return;
-    }
     
     if (isAnalyzing) return;
     
@@ -1223,6 +1244,34 @@ async function sendControlCommand(state) {
     }
 }
 
+// Control switch: send 1/0 as binary to CONTROL characteristic
+async function sendControlToggle(on) {
+    if (!isConnected || !bleServer) {
+        showError('Connect to ESP32 before using the switch');
+        return;
+    }
+    try {
+        const controlService = await bleServer.getPrimaryService(CONTROL_SERVICE_UUID);
+        const controlChar = await controlService.getCharacteristic(CONTROL_CHAR_UUID);
+        const payload = new Uint8Array([on ? 1 : 0]);
+        await controlChar.writeValue(payload);
+        console.log(`✅ Sent control toggle: ${on ? 1 : 0}`);
+    } catch (err) {
+        console.error('❌ Failed to send control toggle:', err);
+        showError('Failed to send control toggle');
+    }
+}
+
+function toggleControlSwitch() {
+    if (!isConnected || !calibrationBaseline.isCalibrated || isCalibrating) {
+        showError('Connect and complete calibration before using the switch');
+        return;
+    }
+    controlSwitchOn = !controlSwitchOn;
+    updateControlUI();
+    sendControlToggle(controlSwitchOn);
+}
+
 // Calibration flow: 10-second stillness to set orientation baseline
 function startCalibration() {
     if (!isConnected) {
@@ -1264,6 +1313,9 @@ function finalizeCalibration() {
     
     if (!calibrationSamples.length) {
         showError('Calibration failed: no samples collected');
+        // Re-run UI updates to keep buttons disabled until a successful calibration
+        updateRecordingUI();
+        updateAnalysisUI();
         return;
     }
     
@@ -1278,6 +1330,11 @@ function finalizeCalibration() {
     // Reset previous orientation timing
     previousOrientation = { pitch: 0, yaw: 0, roll: 0, timestamp: Date.now() };
     
-    showStatus('Calibration complete', 'connected');
+    showStatus('Calibrated - metrics zeroed', 'connected');
     console.log('Calibration baseline set:', calibrationBaseline);
+
+    // Enable recording and analysis now that calibration is done
+    updateRecordingUI();
+    updateAnalysisUI();
+    updateControlUI();
 }
