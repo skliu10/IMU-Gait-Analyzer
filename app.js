@@ -2,9 +2,20 @@
 const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
 const CHARACTERISTIC_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
 
+// Alternate ESP32 service (e.g., Nordic UART-style) — lowercase per Web Bluetooth requirements
+const ALT_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+// Nordic UART characteristics (notify = TX, write = RX)
+const ALT_NOTIFY_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+const ALT_WRITE_CHAR_UUID  = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+
+// Placeholder control service/characteristic for ON/OFF messaging
+const CONTROL_SERVICE_UUID = 'a7b3c8d2-4e5f-4a1b-9c8d-7e6f5a4b3c2d';
+const CONTROL_CHAR_UUID = 'f9e8d7c6-b5a4-4938-8271-6a5b4c3d2e1f';
+
 // Global variables
 let bleDevice = null;
 let bleCharacteristic = null;
+let bleServer = null;
 let isConnected = false;
 
 // Recording variables
@@ -101,32 +112,48 @@ async function connect() {
         showStatus('Connecting...', 'connecting');
         console.log('Attempting to connect with UUIDs:', SERVICE_UUID, CHARACTERISTIC_UUID);
         
-        // Request device - show devices with "XIAO" or specific name in name OR with matching service
+        // Request device - match by service UUIDs only (no name prefix)
         bleDevice = await navigator.bluetooth.requestDevice({
             filters: [
-                { namePrefix: 'a_XIAO' },
-                { namePrefix: 'XIAO' },
-                { services: [SERVICE_UUID] }
+                { services: [SERVICE_UUID] },
+                { services: [ALT_SERVICE_UUID] }
             ],
-            optionalServices: [SERVICE_UUID]
+            optionalServices: [SERVICE_UUID, ALT_SERVICE_UUID, CONTROL_SERVICE_UUID]
         });
         
         console.log('Device selected:', bleDevice.name);
 
         // Connect to GATT server
         console.log('Connecting to GATT server...');
-        const server = await bleDevice.gatt.connect();
+        bleServer = await bleDevice.gatt.connect();
         console.log('Connected to GATT server');
         
-        // Get service
+        // Get service (try primary, then alternate)
         console.log('Getting primary service...');
-        const service = await server.getPrimaryService(SERVICE_UUID);
-        console.log('Service obtained');
+        let service = null;
+        try {
+            service = await bleServer.getPrimaryService(SERVICE_UUID);
+            console.log('Service obtained (primary)');
+        } catch (e) {
+            console.warn('Primary service not found, trying alternate...');
+            service = await bleServer.getPrimaryService(ALT_SERVICE_UUID);
+            console.log('Service obtained (alternate)');
+        }
         
-        // Get characteristic
+        // Get characteristic (try primary ID, then alternate notify char if using ALT service)
         console.log('Getting characteristic...');
-        bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
-        console.log('Characteristic obtained');
+        try {
+            bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+            console.log('Characteristic obtained (primary)');
+        } catch (e) {
+            if (service.uuid.toLowerCase() === ALT_SERVICE_UUID) {
+                console.warn('Primary characteristic not found; trying ALT notify characteristic...');
+                bleCharacteristic = await service.getCharacteristic(ALT_NOTIFY_CHAR_UUID);
+                console.log('Characteristic obtained (ALT notify)');
+            } else {
+                throw e;
+            }
+        }
         
         // Start notifications
         console.log('Starting notifications...');
@@ -228,6 +255,7 @@ async function disconnect() {
         if (bleDevice && bleDevice.gatt.connected) {
             await bleDevice.gatt.disconnect();
         }
+        bleServer = null;
         
         isConnected = false;
         updateConnectionUI();
@@ -241,6 +269,7 @@ async function disconnect() {
 // Handle disconnection event
 function handleDisconnection() {
     isConnected = false;
+    bleServer = null;
     updateConnectionUI();
     showStatus('Disconnected', 'disconnected');
     showError('Device disconnected unexpectedly');
@@ -1044,5 +1073,27 @@ function sendToAnalysisServer(pitch, yaw, roll, accelX, accelY, accelZ) {
         } catch (error) {
             console.error('Error sending data to server:', error);
         }
+    }
+}
+
+// Placeholder: send "ON" or "OFF" to ESP32-C3 control characteristic over BLE
+async function sendControlCommand(state) {
+    if (!isConnected || !bleServer) {
+        showError('Connect to ESP32 before sending control commands');
+        return;
+    }
+    const upper = String(state || '').toUpperCase();
+    if (upper !== 'ON' && upper !== 'OFF') {
+        showError('Control command must be "ON" or "OFF"');
+        return;
+    }
+    try {
+        const controlService = await bleServer.getPrimaryService(CONTROL_SERVICE_UUID);
+        const controlChar = await controlService.getCharacteristic(CONTROL_CHAR_UUID);
+        await controlChar.writeValue(new TextEncoder().encode(upper));
+        console.log(`✅ Sent control command: ${upper}`);
+    } catch (err) {
+        console.error('❌ Failed to send control command:', err);
+        showError('Failed to send control command');
     }
 }
