@@ -380,6 +380,41 @@ footer {
 }
 .card { animation: fadeIn 0.6s ease-out; }
 
+/* Tabs */
+.tabs {
+    display: inline-flex;
+    gap: 8px;
+    margin: 12px 0 20px 0;
+}
+
+.tab-button {
+    padding: 10px 18px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--muted);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tab-button.active {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 6px 16px var(--glow);
+}
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.section-title {
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: var(--accent-dark);
+    margin-bottom: 12px;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
     .metrics-grid { grid-template-columns: repeat(2, 1fr); }

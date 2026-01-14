@@ -8,7 +8,7 @@ const ALT_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const ALT_NOTIFY_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 const ALT_WRITE_CHAR_UUID  = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
 
-// Placeholder control service/characteristic for ON/OFF messaging
+// Haptic control service/characteristic
 const CONTROL_SERVICE_UUID = 'a7b3c8d2-4e5f-4a1b-9c8d-7e6f5a4b3c2d';
 const CONTROL_CHAR_UUID = 'f9e8d7c6-b5a4-4938-8271-6a5b4c3d2e1f';
 
@@ -65,6 +65,7 @@ let calibrationBaseline = {
     roll: 0,
     isCalibrated: false
 };
+let calibrationTiltStd = 0;
 
 // Calibration flow
 let isCalibrating = false;
@@ -83,8 +84,11 @@ let lastTiltUpdate = 0;
 let currentTiltFiltered = 0;
 let currentTiltAvg = 0;
 
-// Control switch state
-let controlSwitchOn = false;
+// Haptic control state
+let hapticConnected = false;
+let hapticChar = null;
+let hapticAlertActive = false;
+let hapticAlertTimer = null;
 
 // Apply a 3rd-order Butterworth low-pass filter to yaw
 function applyButterworth(yawVal) {
@@ -128,10 +132,18 @@ function initializeUI() {
     document.getElementById('startRecordBtn').addEventListener('click', startRecording);
     document.getElementById('stopRecordBtn').addEventListener('click', stopRecording);
     document.getElementById('calibrateBtn').addEventListener('click', startCalibration);
-    document.getElementById('controlSwitchBtn').addEventListener('click', toggleControlSwitch);
+    document.getElementById('controlSwitchBtn').addEventListener('click', connectHapticService);
+    const tabRawBtn = document.getElementById('tabRaw');
+    const tabDerivedBtn = document.getElementById('tabDerived');
+    tabRawBtn.addEventListener('click', () => switchTab('raw'));
+    tabDerivedBtn.addEventListener('click', () => switchTab('derived'));
+    // Default to Derived tab
+    switchTab('derived');
     
     // Initially disable recording buttons
     updateRecordingUI();
+    // Ensure haptic control is enabled on load
+    updateControlUI();
 }
 
 // Handle connect/disconnect button
@@ -313,7 +325,13 @@ async function disconnect() {
             clearInterval(calibrationTimer);
             calibrationTimer = null;
         }
-        controlSwitchOn = false;
+        hapticConnected = false;
+        hapticChar = null;
+        if (hapticAlertTimer) {
+            clearTimeout(hapticAlertTimer);
+            hapticAlertTimer = null;
+        }
+        hapticAlertActive = false;
         
         isConnected = false;
         updateConnectionUI();
@@ -493,6 +511,29 @@ function updateIMUData(rawPitch, rawYaw, rawRoll, accelX, accelY, accelZ) {
     currentTiltAvg = tiltAvg;
     const tiltEl = document.getElementById('tiltValue');
     if (tiltEl) tiltEl.innerHTML = `${tiltAvg.toFixed(1)} <span class="gait-metric-unit">°</span>`;
+    
+    // Haptic trigger: only post-calibration, when tilt exceeds 2σ from baseline
+    if (calibrationBaseline.isCalibrated && calibrationTiltStd > 0) {
+        const tiltDeviation = Math.abs(tiltAvg - calibrationBaseline.yaw);
+        if (!hapticAlertActive && tiltDeviation > 2 * calibrationTiltStd) {
+            const analysisStatusTextEl = document.getElementById('analysisStatusText');
+            const prevAnalysisText = analysisStatusTextEl ? analysisStatusTextEl.textContent : '';
+            sendHapticValue(1);
+            hapticAlertActive = true;
+            showStatus('Sent haptic a message (tilt alert)', 'connected');
+            if (analysisStatusTextEl) {
+                analysisStatusTextEl.textContent = 'Sent haptic a message';
+            }
+            hapticAlertTimer = setTimeout(() => {
+                sendHapticValue(0);
+                hapticAlertActive = false;
+                showStatus('Calibrated - metrics zeroed', 'connected');
+                if (analysisStatusTextEl) {
+                    analysisStatusTextEl.textContent = prevAnalysisText || 'Analyzing...';
+                }
+            }, 5000);
+        }
+    }
     
     // Record data if recording is active
     if (isRecording) {
@@ -780,13 +821,8 @@ function updateCalibrationUI() {
     calibrateBtn.disabled = !isConnected || isCalibrating;
     calibrateBtn.classList.toggle('btn-disabled', !isConnected || isCalibrating);
     
-    if (isCalibrating) {
-        statusEl.style.display = 'block';
-        statusEl.textContent = `Calibrating... ${calibrationCountdown}s remaining. Please look straight ahead and remain still.`;
-    } else if (isConnected && !calibrationBaseline.isCalibrated) {
-        statusEl.style.display = 'block';
-        statusEl.textContent = 'Calibration required before recording or analysis';
-    } else {
+    // Hide calibration status bar to avoid redundant messaging
+    if (statusEl) {
         statusEl.style.display = 'none';
         statusEl.textContent = '';
     }
@@ -795,11 +831,11 @@ function updateCalibrationUI() {
 function updateControlUI() {
     const btn = document.getElementById('controlSwitchBtn');
     if (!btn) return;
-    const allowControl = isConnected && calibrationBaseline.isCalibrated && !isCalibrating;
-    btn.disabled = !allowControl;
-    btn.classList.toggle('btn-disabled', !allowControl);
+    // Haptic connect is allowed anytime (not gated by ESP32/calibration)
+    btn.disabled = false;
+    btn.classList.remove('btn-disabled');
     btn.classList.add('btn-switch');
-    btn.innerHTML = `<span class="btn-icon">⏻</span> Switch: ${controlSwitchOn ? 'On' : 'Off'}`;
+    btn.innerHTML = `<span class="btn-icon">⏻</span> Haptic service: ${hapticConnected ? 'Connected' : 'Connect'}`;
 }
 
 // Update connection UI
@@ -826,22 +862,15 @@ function updateConnectionUI() {
     
     // Update control switch
     updateControlUI();
+    
+    // Maintain tab state visuals (no-op here unless we add more logic later)
 }
 
 // Update analysis UI based on connection status
 function updateAnalysisUI() {
     const allowAnalyze = isConnected && calibrationBaseline.isCalibrated && !isCalibrating;
-    if (allowAnalyze) {
-        toggleAnalysisBtn.disabled = false;
-        toggleAnalysisBtn.classList.remove('btn-disabled');
-    } else {
-        toggleAnalysisBtn.disabled = true;
-        toggleAnalysisBtn.classList.add('btn-disabled');
-        
-        // Stop analysis if running
-        if (isAnalyzing) {
-            stopRealtimeAnalysis();
-        }
+    if (!allowAnalyze && isAnalyzing) {
+        stopRealtimeAnalysis();
     }
 }
 
@@ -1080,7 +1109,6 @@ let gaitMetrics = {
 };
 
 // UI Elements
-const toggleAnalysisBtn = document.getElementById('toggleAnalysisBtn');
 const analysisStatus = document.getElementById('analysisStatus');
 const analysisStatusText = document.getElementById('analysisStatusText');
 const gaitMetricsGrid = document.getElementById('gaitMetricsGrid');
@@ -1088,20 +1116,21 @@ const gaitSpeedValue = document.getElementById('gaitSpeedValue');
 const cadenceValue = document.getElementById('cadenceValue');
 const totalStridesValue = document.getElementById('totalStridesValue');
 const bufferStridesValue = document.getElementById('bufferStridesValue');
+const tabRawBtn = document.getElementById('tabRaw');
+const tabDerivedBtn = document.getElementById('tabDerived');
+const tabRawContent = document.getElementById('tabRawContent');
+const tabDerivedContent = document.getElementById('tabDerivedContent');
 
-// Event listeners
-toggleAnalysisBtn.addEventListener('click', toggleRealtimeAnalysis);
-
-// Toggle real-time analysis
-function toggleRealtimeAnalysis() {
-    if (isAnalyzing) {
-        stopRealtimeAnalysis();
-    } else {
-        startRealtimeAnalysis();
-    }
+// Tab switching
+function switchTab(target) {
+    const isRaw = target === 'raw';
+    tabRawBtn.classList.toggle('active', isRaw);
+    tabDerivedBtn.classList.toggle('active', !isRaw);
+    tabRawContent.classList.toggle('active', isRaw);
+    tabDerivedContent.classList.toggle('active', !isRaw);
 }
 
-// Start real-time analysis
+// Start real-time analysis (auto-run after calibration)
 function startRealtimeAnalysis() {
     if (!isConnected) {
         showError('Please connect to ESP32 first');
@@ -1124,8 +1153,6 @@ function startRealtimeAnalysis() {
             reconnectAttempts = 0;
             
             // Update UI
-            toggleAnalysisBtn.textContent = 'Stop Analysis';
-            toggleAnalysisBtn.classList.add('active');
             analysisStatus.style.display = 'flex';
             analysisStatusText.textContent = 'Analyzing gait...';
             gaitMetricsGrid.style.display = 'grid';
@@ -1173,8 +1200,6 @@ function stopRealtimeAnalysis() {
     isAnalyzing = false;
     
     // Update UI
-    toggleAnalysisBtn.textContent = 'Start Real-time Analysis';
-    toggleAnalysisBtn.classList.remove('active');
     analysisStatus.style.display = 'none';
     gaitMetricsGrid.style.display = 'none';
     
@@ -1190,6 +1215,8 @@ function updateGaitMetrics(metrics) {
     cadenceValue.innerHTML = `${metrics.cadence.toFixed(1)} <span class="gait-metric-unit">steps/min</span>`;
     totalStridesValue.textContent = metrics.total_strides || 0;
     bufferStridesValue.textContent = metrics.stride_count;
+    const strideCountEl = document.getElementById('strideCountValue');
+    if (strideCountEl) strideCountEl.textContent = metrics.stride_count || 0;
     
     // Update status text
     const usingHeadGait = metrics.using_headgait ? '🧠 HeadGait Models' : '⚡ Fallback Algorithm';
@@ -1245,31 +1272,38 @@ async function sendControlCommand(state) {
 }
 
 // Control switch: send 1/0 as binary to CONTROL characteristic
-async function sendControlToggle(on) {
-    if (!isConnected || !bleServer) {
-        showError('Connect to ESP32 before using the switch');
-        return;
-    }
+async function connectHapticService() {
     try {
-        const controlService = await bleServer.getPrimaryService(CONTROL_SERVICE_UUID);
-        const controlChar = await controlService.getCharacteristic(CONTROL_CHAR_UUID);
-        const payload = new Uint8Array([on ? 1 : 0]);
-        await controlChar.writeValue(payload);
-        console.log(`✅ Sent control toggle: ${on ? 1 : 0}`);
+        showStatus('Connecting to Haptic service...', 'connecting');
+        const device = await navigator.bluetooth.requestDevice({
+            filters: [{ services: [CONTROL_SERVICE_UUID] }],
+            optionalServices: [CONTROL_SERVICE_UUID]
+        });
+        const server = await device.gatt.connect();
+        const svc = await server.getPrimaryService(CONTROL_SERVICE_UUID);
+        hapticChar = await svc.getCharacteristic(CONTROL_CHAR_UUID);
+        hapticConnected = true;
+        showStatus('Haptic service connected', 'connected');
+        updateControlUI();
     } catch (err) {
-        console.error('❌ Failed to send control toggle:', err);
-        showError('Failed to send control toggle');
+        console.error('❌ Failed to connect haptic service:', err);
+        showError('Failed to connect haptic service');
+        hapticConnected = false;
+        hapticChar = null;
+        updateControlUI();
     }
 }
 
-function toggleControlSwitch() {
-    if (!isConnected || !calibrationBaseline.isCalibrated || isCalibrating) {
-        showError('Connect and complete calibration before using the switch');
-        return;
+async function sendHapticValue(val) {
+    if (!hapticConnected || !hapticChar) return;
+    try {
+        const payload = new Uint8Array([val]);
+        await hapticChar.writeValue(payload);
+        console.log(`✅ Sent haptic value: ${val}`);
+    } catch (err) {
+        console.error('❌ Failed to send haptic value:', err);
+        showError('Failed to send haptic command');
     }
-    controlSwitchOn = !controlSwitchOn;
-    updateControlUI();
-    sendControlToggle(controlSwitchOn);
 }
 
 // Calibration flow: 10-second stillness to set orientation baseline
@@ -1286,12 +1320,15 @@ function startCalibration() {
     isCalibrating = true;
     calibrationBaseline.isCalibrated = false;
     updateCalibrationUI();
-    showStatus('Calibrating... please remain still and look straight ahead', 'connecting');
+    showStatus(`Calibrating... ${calibrationCountdown}s remaining`, 'connecting');
     console.log('Calibration started: collecting 10s of baseline orientation');
     
     calibrationTimer = setInterval(() => {
         calibrationCountdown -= 1;
         updateCalibrationUI();
+        if (calibrationCountdown > 0) {
+            showStatus(`Calibrating... ${calibrationCountdown}s remaining. Please stand still and look straight ahead.`, 'connecting');
+        }
         if (calibrationCountdown <= 0) {
             finalizeCalibration();
         }
@@ -1326,6 +1363,17 @@ function finalizeCalibration() {
         roll: avg(calibrationSamples, 'roll'),
         isCalibrated: true
     };
+    const std = (arr, key, mean) => {
+        const n = arr.length || 1;
+        const s = arr.reduce((sum, v) => sum + Math.pow(v[key] - mean, 2), 0);
+        return Math.sqrt(s / n);
+    };
+    calibrationTiltStd = std(calibrationSamples, 'yaw', calibrationBaseline.yaw);
+    if (hapticAlertTimer) {
+        clearTimeout(hapticAlertTimer);
+        hapticAlertTimer = null;
+    }
+    hapticAlertActive = false;
     
     // Reset previous orientation timing
     previousOrientation = { pitch: 0, yaw: 0, roll: 0, timestamp: Date.now() };
@@ -1337,4 +1385,5 @@ function finalizeCalibration() {
     updateRecordingUI();
     updateAnalysisUI();
     updateControlUI();
+    startRealtimeAnalysis(); // Auto-start analysis after calibration
 }

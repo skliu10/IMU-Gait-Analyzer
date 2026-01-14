@@ -30,7 +30,7 @@
             </div>
             <button id="controlSwitchBtn" class="btn btn-primary btn-disabled" disabled>
                 <span class="btn-icon">⏻</span>
-                Switch: Off
+                Haptic service: Off
             </button>
             <button id="calibrateBtn" class="btn btn-analysis btn-disabled" disabled>
                 <span class="btn-icon">🧭</span>
@@ -54,41 +54,11 @@
             </div>
         </div>
 
-        <!-- Real-time Analysis Panel -->
+        <!-- Real-time Analysis Panel (status only) -->
         <div class="analysis-panel">
-            <button id="toggleAnalysisBtn" class="btn btn-analysis btn-disabled" disabled>
-                <span class="btn-icon">🧠</span>
-                Start Real-time Analysis
-            </button>
             <div id="analysisStatus" class="analysis-status" style="display: none;">
                 <span class="status-dot analyzing"></span>
                 <span id="analysisStatusText">Analyzing...</span>
-            </div>
-        </div>
-
-        <!-- Gait Metrics Grid -->
-        <div id="gaitMetricsGrid" class="gait-metrics-grid" style="display: none;">
-            <div class="gait-metric-card">
-                <div class="gait-metric-label">GAIT SPEED</div>
-                <div id="gaitSpeedValue" class="gait-metric-value">0.00 <span class="gait-metric-unit">m/s</span></div>
-            </div>
-            <div class="gait-metric-card">
-                <div class="gait-metric-label">CADENCE</div>
-                <div id="cadenceValue" class="gait-metric-value">0.0 <span class="gait-metric-unit">steps/min</span></div>
-            </div>
-            <div class="gait-metric-card">
-                <div class="gait-metric-label">TOTAL STRIDES</div>
-                <div id="totalStridesValue" class="gait-metric-value">0</div>
-                <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                    Buffer: <span id="bufferStridesValue">0</span>
-                </div>
-            </div>
-            <div class="gait-metric-card">
-                <div class="gait-metric-label">TILT (YAW AVG)</div>
-                <div id="tiltValue" class="gait-metric-value">0.0 <span class="gait-metric-unit">°</span></div>
-                <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                    Smoothed yaw, updated every second
-                </div>
             </div>
         </div>
 
@@ -99,9 +69,15 @@
             <button id="closeError" class="close-btn">×</button>
         </div>
 
-        <!-- Main Content -->
-        <div class="main-content">
-            <!-- Metrics Grid -->
+        <!-- Tabs -->
+        <div class="tabs">
+            <button id="tabRaw" class="tab-button active">Raw Metrics</button>
+            <button id="tabDerived" class="tab-button">Derived Metrics</button>
+        </div>
+
+        <!-- Tab Content -->
+        <div id="tabRawContent" class="tab-content active">
+            <div class="section-title">Raw Metrics</div>
             <div class="metrics-grid">
                 <div class="metric-card">
                     <div class="metric-label">PITCH</div>
@@ -129,7 +105,6 @@
                 </div>
             </div>
 
-            <!-- Charts Grid -->
             <div class="charts-grid">
                 <div class="card chart-card">
                     <h3>PITCH</h3>
@@ -172,6 +147,41 @@
                         <canvas id="accelZChart"></canvas>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <div id="tabDerivedContent" class="tab-content">
+            <div class="section-title">Derived Metrics</div>
+            <div id="gaitMetricsGrid" class="gait-metrics-grid" style="display: grid;">
+                <div class="gait-metric-card">
+                    <div class="gait-metric-label">GAIT SPEED</div>
+                    <div id="gaitSpeedValue" class="gait-metric-value">0.00 <span class="gait-metric-unit">m/s</span></div>
+                </div>
+                <div class="gait-metric-card">
+                    <div class="gait-metric-label">CADENCE</div>
+                    <div id="cadenceValue" class="gait-metric-value">0.0 <span class="gait-metric-unit">steps/min</span></div>
+                </div>
+                <div class="gait-metric-card">
+                    <div class="gait-metric-label">STRIDE COUNT</div>
+                    <div id="strideCountValue" class="gait-metric-value">0</div>
+                </div>
+                <div class="gait-metric-card">
+                    <div class="gait-metric-label">TOTAL STRIDES</div>
+                    <div id="totalStridesValue" class="gait-metric-value">0</div>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        Buffer: <span id="bufferStridesValue">0</span>
+                    </div>
+                </div>
+                <div class="gait-metric-card">
+                    <div class="gait-metric-label">TILT (YAW AVG)</div>
+                    <div id="tiltValue" class="gait-metric-value">0.0 <span class="gait-metric-unit">°</span></div>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        Smoothed yaw over ~1s
+                    </div>
+                </div>
+            </div>
+
+            <div class="charts-grid">
                 <div class="card chart-card">
                     <h3>TILT (FILTERED YAW)</h3>
                     <div class="chart-container">
