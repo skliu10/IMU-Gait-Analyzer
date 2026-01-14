@@ -69,17 +69,74 @@ let calibrationTiltStd = 0;
 
 // Calibration flow
 let isCalibrating = false;
+let isZeroingOut = false;
+let zeroOutSamples = [];
 let calibrationSamples = [];
 let calibrationTimer = null;
 let calibrationCountdown = 10;
 
 // Tilt (filtered yaw) state
-const BW_B = [0.0028981946, 0.0086945839, 0.0086945839, 0.0028981946];
-const BW_A = [1.0, -2.3740947437, 1.9293556691, -0.5320753683];
+class LiveLowPass {
+    constructor(alpha = 0.1) {
+        this.alpha = alpha; // Closer to 0 is smoother, closer to 1 is raw
+        this.smoothedValue = null;
+    }
+
+    update(newValue) {
+        if (this.smoothedValue === null) {
+            this.smoothedValue = newValue;
+            return newValue;
+        }
+        // Formula: y[n] = y[n-1] + alpha * (x[n] - y[n-1])
+        this.smoothedValue = this.smoothedValue + this.alpha * (newValue - this.smoothedValue);
+        return this.smoothedValue;
+    }
+}
+
+class LivePeakMidline {
+    constructor(maLength = 30) {
+        this.buffer = []; // Window of 3 samples to detect peaks
+        this.midpoints = []; // Stores the last 30 midpoints
+        this.maLength = maLength;
+        this.lastExtreme = null;
+    }
+
+    update(newPoint) {
+        this.buffer.push(newPoint);
+        if (this.buffer.length > 3) this.buffer.shift();
+        if (this.buffer.length < 3) return null;
+
+        const [prevPrev, prev, current] = this.buffer;
+
+        // Peak detection logic: Is the middle point the highest or lowest?
+        const isPeak = (prev > prevPrev && prev > current);
+        const isTrough = (prev < prevPrev && prev < current);
+
+        if (isPeak || isTrough) {
+            const currentExtreme = prev;
+
+            if (this.lastExtreme !== null) {
+                const midpoint = (currentExtreme + this.lastExtreme) / 2;
+                this.midpoints.push(midpoint);
+                
+                if (this.midpoints.length > this.maLength) {
+                    this.midpoints.shift();
+                }
+            }
+            this.lastExtreme = currentExtreme;
+        }
+
+        // Return the Trailing Moving Average of the midpoints
+        if (this.midpoints.length === 0) return null;
+        const sum = this.midpoints.reduce((a, b) => a + b, 0);
+        return sum / this.midpoints.length;
+    }
+}
+
+const tiltLowPassFilter = new LiveLowPass(0.1); // Adjust alpha for desired smoothing (0.1 = smooth, 0.5 = moderate, 1.0 = raw)
+const tiltPeakMidline = new LivePeakMidline(30); // Moving average of 30 midpoints
 const tiltBuffer = [];
 const tiltWindow = 20; // samples (~1s if ~20Hz; adjust if needed)
-let prevYawInputs = [0, 0, 0];
-let prevYawOutputs = [0, 0, 0];
 let lastTiltUpdate = 0;
 let currentTiltFiltered = 0;
 let currentTiltAvg = 0;
@@ -90,21 +147,6 @@ let hapticChar = null;
 let hapticAlertActive = false;
 let hapticAlertTimer = null;
 
-// Apply a 3rd-order Butterworth low-pass filter to yaw
-function applyButterworth(yawVal) {
-    // Shift history: x[n-1..3], y[n-1..3]
-    prevYawInputs = [yawVal, prevYawInputs[0], prevYawInputs[1]];
-    const x0 = prevYawInputs[0], x1 = prevYawInputs[1], x2 = prevYawInputs[2], x3 = prevYawInputs[3] || 0;
-    const y1 = prevYawOutputs[0], y2 = prevYawOutputs[1], y3 = prevYawOutputs[2];
-    
-    const y0 = BW_B[0]*x0 + BW_B[1]*x1 + BW_B[2]*x2 + BW_B[3]*x3
-              - BW_A[1]*y1 - BW_A[2]*y2 - BW_A[3]*y3;
-    
-    // Update output history
-    prevYawOutputs = [y0, y1, y2];
-    
-    return y0;
-}
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -131,6 +173,7 @@ function initializeUI() {
     document.getElementById('closeError').addEventListener('click', hideError);
     document.getElementById('startRecordBtn').addEventListener('click', startRecording);
     document.getElementById('stopRecordBtn').addEventListener('click', stopRecording);
+    document.getElementById('zeroOutBtn').addEventListener('click', zeroOutIMU);
     document.getElementById('calibrateBtn').addEventListener('click', startCalibration);
     document.getElementById('controlSwitchBtn').addEventListener('click', connectHapticService);
     const tabRawBtn = document.getElementById('tabRaw');
@@ -223,8 +266,16 @@ async function connect() {
         // Reset calibration state on new connection
         calibrationBaseline.isCalibrated = false;
         isCalibrating = false;
+        isZeroingOut = false;
         calibrationSamples = [];
+        zeroOutSamples = [];
         calibrationCountdown = 10;
+        // Reset low-pass filter state for fresh start
+        tiltLowPassFilter.smoothedValue = null;
+        // Reset peak/trough midline state
+        tiltPeakMidline.buffer = [];
+        tiltPeakMidline.midpoints = [];
+        tiltPeakMidline.lastExtreme = null;
         if (calibrationTimer) {
             clearInterval(calibrationTimer);
             calibrationTimer = null;
@@ -319,8 +370,20 @@ async function disconnect() {
         }
         bleServer = null;
         isCalibrating = false;
+        isZeroingOut = false;
         calibrationSamples = [];
+        zeroOutSamples = [];
         calibrationCountdown = 10;
+        if (window.zeroOutTimer) {
+            clearTimeout(window.zeroOutTimer);
+            window.zeroOutTimer = null;
+        }
+        // Reset low-pass filter state on disconnect
+        tiltLowPassFilter.smoothedValue = null;
+        // Reset peak/trough midline state
+        tiltPeakMidline.buffer = [];
+        tiltPeakMidline.midpoints = [];
+        tiltPeakMidline.lastExtreme = null;
         if (calibrationTimer) {
             clearInterval(calibrationTimer);
             calibrationTimer = null;
@@ -450,6 +513,36 @@ function calculateAcceleration(pitch, yaw, roll) {
     return 0;
 }
 
+// Butterworth filter coefficients for calibration data filtering
+const CALIB_BW_B = [0.0028981946, 0.0086945839, 0.0086945839, 0.0028981946];
+const CALIB_BW_A = [1.0, -2.3740947437, 1.9293556691, -0.5320753683];
+
+// Apply 3rd-order Butterworth low-pass filter to an array of values
+function applyButterworthToArray(values) {
+    if (values.length === 0) return [];
+    
+    const filtered = [];
+    let prevInputs = [0, 0, 0];
+    let prevOutputs = [0, 0, 0];
+    
+    for (let i = 0; i < values.length; i++) {
+        const val = values[i];
+        // Shift history: x[n-1..3], y[n-1..3]
+        prevInputs = [val, prevInputs[0], prevInputs[1]];
+        const x0 = prevInputs[0], x1 = prevInputs[1], x2 = prevInputs[2], x3 = prevInputs[3] || 0;
+        const y1 = prevOutputs[0], y2 = prevOutputs[1], y3 = prevOutputs[2];
+        
+        const y0 = CALIB_BW_B[0]*x0 + CALIB_BW_B[1]*x1 + CALIB_BW_B[2]*x2 + CALIB_BW_B[3]*x3
+                  - CALIB_BW_A[1]*y1 - CALIB_BW_A[2]*y2 - CALIB_BW_A[3]*y3;
+        
+        // Update output history
+        prevOutputs = [y0, y1, y2];
+        filtered.push(y0);
+    }
+    
+    return filtered;
+}
+
 // Calibrate/Zero the sensors
 function calibrateZero(rawPitch, rawYaw, rawRoll) {
     calibrationBaseline = {
@@ -492,25 +585,38 @@ function updateIMUData(rawPitch, rawYaw, rawRoll, accelX, accelY, accelZ) {
     currentOrientation = { pitch, yaw, roll };
     currentAcceleration = { x: accelX, y: accelY, z: accelZ };
 
-    // Capture samples during calibration window
+    // Capture samples during zero-out window
+    if (isZeroingOut) {
+        zeroOutSamples.push({ pitch: rawPitch, yaw: rawYaw, roll: rawRoll });
+    }
+    
+    // Capture samples during calibration window (for standard deviation only)
     if (isCalibrating) {
         calibrationSamples.push({ pitch: rawPitch, yaw: rawYaw, roll: rawRoll });
     }
 
-    // Compute filtered yaw -> tilt
-    const tiltFiltered = applyButterworth(yaw);
+    // Compute filtered yaw -> tilt using recursive low-pass filter
+    const tiltFiltered = tiltLowPassFilter.update(yaw);
     currentTiltFiltered = tiltFiltered;
     tiltBuffer.push(tiltFiltered);
     if (tiltBuffer.length > maxDataPoints) tiltBuffer.shift();
     chartData.tilt.push(tiltFiltered);
     if (chartData.tilt.length > maxDataPoints) chartData.tilt.shift();
 
-    // Update tilt metric every sample using a short moving average window
-    const recent = tiltBuffer.slice(-tiltWindow);
-    const tiltAvg = recent.length ? recent.reduce((a, b) => a + b, 0) / recent.length : tiltFiltered;
-    currentTiltAvg = tiltAvg;
+    // Calculate tilt metric using peak/trough midpoint moving average
+    const tiltMidlineAvg = tiltPeakMidline.update(tiltFiltered);
+    
+    // Use midpoint-based average if available, otherwise fall back to filtered value
+    if (tiltMidlineAvg !== null) {
+        currentTiltAvg = tiltMidlineAvg;
+    } else {
+        // Fallback: use simple moving average until enough midpoints are collected
+        const recent = tiltBuffer.slice(-tiltWindow);
+        currentTiltAvg = recent.length ? recent.reduce((a, b) => a + b, 0) / recent.length : tiltFiltered;
+    }
+    
     const tiltEl = document.getElementById('tiltValue');
-    if (tiltEl) tiltEl.innerHTML = `${tiltAvg.toFixed(1)} <span class="gait-metric-unit">°</span>`;
+    if (tiltEl) tiltEl.innerHTML = `${currentTiltAvg.toFixed(1)} <span class="gait-metric-unit">°</span>`;
     
     // Haptic trigger: only post-calibration, when tilt exceeds 2σ from baseline
     if (calibrationBaseline.isCalibrated && calibrationTiltStd > 0) {
@@ -796,7 +902,7 @@ function updateRecordingUI() {
     const stopBtn = document.getElementById('stopRecordBtn');
     const recordingInfo = document.getElementById('recordingInfo');
     
-    const allowRecord = isConnected && !isCalibrating && calibrationBaseline.isCalibrated;
+    const allowRecord = isConnected && !isCalibrating && !isZeroingOut && calibrationBaseline.isCalibrated;
     
     if (isRecording) {
         startBtn.disabled = true;
@@ -815,11 +921,19 @@ function updateRecordingUI() {
 }
 
 function updateCalibrationUI() {
+    const zeroOutBtn = document.getElementById('zeroOutBtn');
     const calibrateBtn = document.getElementById('calibrateBtn');
     const statusEl = document.getElementById('calibrationStatus');
     
-    calibrateBtn.disabled = !isConnected || isCalibrating;
-    calibrateBtn.classList.toggle('btn-disabled', !isConnected || isCalibrating);
+    // Zero out button: enabled when connected and not currently zeroing/calibrating
+    if (zeroOutBtn) {
+        zeroOutBtn.disabled = !isConnected || isZeroingOut || isCalibrating;
+        zeroOutBtn.classList.toggle('btn-disabled', !isConnected || isZeroingOut || isCalibrating);
+    }
+    
+    // Calibrate button: enabled when connected, baseline is set, and not currently calibrating/zeroing
+    calibrateBtn.disabled = !isConnected || !calibrationBaseline.isCalibrated || isCalibrating || isZeroingOut;
+    calibrateBtn.classList.toggle('btn-disabled', !isConnected || !calibrationBaseline.isCalibrated || isCalibrating || isZeroingOut);
     
     // Hide calibration status bar to avoid redundant messaging
     if (statusEl) {
@@ -868,7 +982,7 @@ function updateConnectionUI() {
 
 // Update analysis UI based on connection status
 function updateAnalysisUI() {
-    const allowAnalyze = isConnected && calibrationBaseline.isCalibrated && !isCalibrating;
+    const allowAnalyze = isConnected && calibrationBaseline.isCalibrated && !isCalibrating && !isZeroingOut;
     if (!allowAnalyze && isAnalyzing) {
         stopRealtimeAnalysis();
     }
@@ -1306,28 +1420,109 @@ async function sendHapticValue(val) {
     }
 }
 
-// Calibration flow: 10-second stillness to set orientation baseline
+// Zero Out IMU: Quick baseline calibration with low-pass filter
+function zeroOutIMU() {
+    if (!isConnected) {
+        showError('Please connect to ESP32 before zeroing out');
+        return;
+    }
+    if (isZeroingOut || isCalibrating) return;
+    
+    // Reset state
+    zeroOutSamples = [];
+    isZeroingOut = true;
+    updateCalibrationUI();
+    showStatus('Zeroing out IMU... Please hold still for 3 seconds', 'connecting');
+    console.log('Zero out started: collecting 3s of baseline orientation');
+    
+    // Collect samples for 3 seconds
+    const zeroOutTimer = setTimeout(() => {
+        if (isZeroingOut) {
+            finalizeZeroOut();
+        }
+    }, 3000);
+    
+    // Store timer reference for cleanup if needed
+    window.zeroOutTimer = zeroOutTimer;
+}
+
+function finalizeZeroOut() {
+    isZeroingOut = false;
+    if (window.zeroOutTimer) {
+        clearTimeout(window.zeroOutTimer);
+        window.zeroOutTimer = null;
+    }
+    updateCalibrationUI();
+    
+    if (!zeroOutSamples.length) {
+        showError('Zero out failed: no samples collected');
+        updateRecordingUI();
+        updateAnalysisUI();
+        return;
+    }
+    
+    // Apply Butterworth filter to zero-out data to remove outliers
+    const pitchValues = zeroOutSamples.map(s => s.pitch);
+    const yawValues = zeroOutSamples.map(s => s.yaw);
+    const rollValues = zeroOutSamples.map(s => s.roll);
+    
+    const filteredPitch = applyButterworthToArray(pitchValues);
+    const filteredYaw = applyButterworthToArray(yawValues);
+    const filteredRoll = applyButterworthToArray(rollValues);
+    
+    // Calculate baseline from filtered data
+    const avg = (arr) => arr.reduce((sum, v) => sum + v, 0) / arr.length;
+    calibrationBaseline = {
+        pitch: avg(filteredPitch),
+        yaw: avg(filteredYaw),
+        roll: avg(filteredRoll),
+        isCalibrated: true
+    };
+    
+    // Reset low-pass filter state for fresh start after zero-out
+    tiltLowPassFilter.smoothedValue = null;
+    // Reset peak/trough midline state
+    tiltPeakMidline.buffer = [];
+    tiltPeakMidline.midpoints = [];
+    tiltPeakMidline.lastExtreme = null;
+    
+    // Reset previous orientation timing
+    previousOrientation = { pitch: 0, yaw: 0, roll: 0, timestamp: Date.now() };
+    
+    showStatus('IMU zeroed - baseline set', 'connected');
+    console.log('Zero out baseline set:', calibrationBaseline);
+    
+    // Enable recording and analysis now that baseline is set
+    updateRecordingUI();
+    updateAnalysisUI();
+    updateControlUI();
+}
+
+// Calibration flow: 10-second data collection for standard deviation calculation
 function startCalibration() {
     if (!isConnected) {
         showError('Please connect to ESP32 before calibrating');
         return;
     }
-    if (isCalibrating) return;
+    if (!calibrationBaseline.isCalibrated) {
+        showError('Please zero out IMU first before calibrating');
+        return;
+    }
+    if (isCalibrating || isZeroingOut) return;
     
     // Reset state
     calibrationSamples = [];
     calibrationCountdown = 10;
     isCalibrating = true;
-    calibrationBaseline.isCalibrated = false;
     updateCalibrationUI();
     showStatus(`Calibrating... ${calibrationCountdown}s remaining`, 'connecting');
-    console.log('Calibration started: collecting 10s of baseline orientation');
+    console.log('Calibration started: collecting 10s of data for standard deviation');
     
     calibrationTimer = setInterval(() => {
         calibrationCountdown -= 1;
         updateCalibrationUI();
         if (calibrationCountdown > 0) {
-            showStatus(`Calibrating... ${calibrationCountdown}s remaining. Please stand still and look straight ahead.`, 'connecting');
+            showStatus(`Calibrating... ${calibrationCountdown}s remaining. Please look straight ahead and beging running at a comforable pace.`, 'connecting');
         }
         if (calibrationCountdown <= 0) {
             finalizeCalibration();
@@ -1350,36 +1545,39 @@ function finalizeCalibration() {
     
     if (!calibrationSamples.length) {
         showError('Calibration failed: no samples collected');
-        // Re-run UI updates to keep buttons disabled until a successful calibration
         updateRecordingUI();
         updateAnalysisUI();
         return;
     }
     
-    const avg = (arr, key) => arr.reduce((sum, s) => sum + s[key], 0) / arr.length;
-    calibrationBaseline = {
-        pitch: avg(calibrationSamples, 'pitch'),
-        yaw: avg(calibrationSamples, 'yaw'),
-        roll: avg(calibrationSamples, 'roll'),
-        isCalibrated: true
-    };
-    const std = (arr, key, mean) => {
+    // Apply Butterworth filter to calibration data to remove outliers
+    const pitchValues = calibrationSamples.map(s => s.pitch);
+    const yawValues = calibrationSamples.map(s => s.yaw);
+    const rollValues = calibrationSamples.map(s => s.roll);
+    
+    const filteredPitch = applyButterworthToArray(pitchValues);
+    const filteredYaw = applyButterworthToArray(yawValues);
+    const filteredRoll = applyButterworthToArray(rollValues);
+    
+    // Calculate standard deviation from filtered yaw data (using existing baseline)
+    const avg = (arr) => arr.reduce((sum, v) => sum + v, 0) / arr.length;
+    const meanYaw = avg(filteredYaw);
+    
+    const std = (arr, mean) => {
         const n = arr.length || 1;
-        const s = arr.reduce((sum, v) => sum + Math.pow(v[key] - mean, 2), 0);
+        const s = arr.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0);
         return Math.sqrt(s / n);
     };
-    calibrationTiltStd = std(calibrationSamples, 'yaw', calibrationBaseline.yaw);
+    calibrationTiltStd = std(filteredYaw, meanYaw);
+    
     if (hapticAlertTimer) {
         clearTimeout(hapticAlertTimer);
         hapticAlertTimer = null;
     }
     hapticAlertActive = false;
     
-    // Reset previous orientation timing
-    previousOrientation = { pitch: 0, yaw: 0, roll: 0, timestamp: Date.now() };
-    
-    showStatus('Calibrated - metrics zeroed', 'connected');
-    console.log('Calibration baseline set:', calibrationBaseline);
+    showStatus('Calibration complete - standard deviation calculated', 'connected');
+    console.log('Calibration standard deviation set:', calibrationTiltStd);
 
     // Enable recording and analysis now that calibration is done
     updateRecordingUI();
