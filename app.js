@@ -794,6 +794,67 @@ function initializeCharts() {
     if (document.getElementById('tiltChart')) {
         tiltChart = new Chart(document.getElementById('tiltChart'), chartConfig('Tilt (Yaw Filtered)', '#c27a43', chartData.tilt));
     }
+    
+    // Standard deviation deviation chart (special config with ±3σ range)
+    if (document.getElementById('tiltStdDevChart')) {
+        tiltStdDevChart = new Chart(document.getElementById('tiltStdDevChart'), {
+            type: 'line',
+            data: {
+                labels: chartData.timestamps,
+                datasets: [{
+                    label: 'Tilt Std Dev',
+                    data: chartData.tiltStdDev,
+                    borderColor: '#ff6b6b',
+                    backgroundColor: '#ff6b6b15',
+                    borderWidth: 3,
+                    tension: 0.35,
+                    fill: true,
+                    pointRadius: 0,
+                    pointHoverRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                animation: { duration: 0 },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        suggestedMin: -3,
+                        suggestedMax: 3,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)',
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: '#6b635c',
+                            font: { size: 11, family: 'Inter' },
+                            callback: function(value) {
+                                return `${value}σ`;
+                            }
+                        }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            color: '#6b635c',
+                            font: { size: 10, family: 'Inter' },
+                            maxRotation: 0,
+                            minRotation: 0,
+                            maxTicksLimit: 6
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: false }
+                },
+                elements: {
+                    point: { radius: 0 }
+                }
+            }
+        });
+    }
 }
 
 // Update charts
@@ -1466,10 +1527,10 @@ function finalizeZeroOut() {
         clearTimeout(window.zeroOutTimer);
         window.zeroOutTimer = null;
     }
-    updateCalibrationUI();
     
     if (!zeroOutSamples.length) {
         showError('Zero out failed: no samples collected');
+        updateCalibrationUI();
         updateRecordingUI();
         updateAnalysisUI();
         return;
@@ -1506,7 +1567,8 @@ function finalizeZeroOut() {
     showStatus('IMU zeroed - baseline set', 'connected');
     console.log('Zero out baseline set:', calibrationBaseline);
     
-    // Enable recording and analysis now that baseline is set
+    // Update UI after setting isCalibrated = true
+    updateCalibrationUI();
     updateRecordingUI();
     updateAnalysisUI();
     updateControlUI();
