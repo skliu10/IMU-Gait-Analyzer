@@ -148,6 +148,21 @@ let hapticChar = null;
 let hapticAlertActive = false;
 let hapticAlertTimer = null;
 
+// Unwrap state for Euler angles to prevent ±180/360 jumps
+let lastUnwrappedAngles = { pitch: null, yaw: null, roll: null };
+
+// Helper to unwrap a single angle using the previous unwrapped value
+function unwrapAngle(current, prevUnwrapped) {
+    if (prevUnwrapped === null || Number.isNaN(prevUnwrapped) || Number.isNaN(current)) {
+        return current;
+    }
+    // Compute delta relative to the last unwrapped angle modulo 360
+    let delta = current - (prevUnwrapped % 360);
+    // Wrap delta into [-180, 180] to pick the shortest path
+    while (delta > 180) delta -= 360;
+    while (delta < -180) delta += 360;
+    return prevUnwrapped + delta;
+}
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -413,7 +428,6 @@ function handleDisconnection() {
     bleServer = null;
     updateConnectionUI();
     showStatus('Disconnected', 'disconnected');
-    showError('Device disconnected unexpectedly');
 }
 
 // Show status
@@ -579,8 +593,18 @@ function applyCalibration(rawPitch, rawYaw, rawRoll) {
 
 // Update IMU data
 function updateIMUData(rawPitch, rawYaw, rawRoll, accelX, accelY, accelZ) {
+    // Unwrap Euler angles to avoid ±180/360 discontinuities
+    const unwrappedPitch = unwrapAngle(rawPitch, lastUnwrappedAngles.pitch);
+    const unwrappedYaw = unwrapAngle(rawYaw, lastUnwrappedAngles.yaw);
+    const unwrappedRoll = unwrapAngle(rawRoll, lastUnwrappedAngles.roll);
+    lastUnwrappedAngles = {
+        pitch: unwrappedPitch,
+        yaw: unwrappedYaw,
+        roll: unwrappedRoll
+    };
+
     // Apply calibration to get relative values
-    const { pitch, yaw, roll } = applyCalibration(rawPitch, rawYaw, rawRoll);
+    const { pitch, yaw, roll } = applyCalibration(unwrappedPitch, unwrappedYaw, unwrappedRoll);
     
     // Update current orientation and acceleration
     currentOrientation = { pitch, yaw, roll };
@@ -588,16 +612,16 @@ function updateIMUData(rawPitch, rawYaw, rawRoll, accelX, accelY, accelZ) {
 
     // Capture samples during zero-out window
     if (isZeroingOut) {
-        zeroOutSamples.push({ pitch: rawPitch, yaw: rawYaw, roll: rawRoll });
+        zeroOutSamples.push({ pitch: unwrappedPitch, yaw: unwrappedYaw, roll: unwrappedRoll });
     }
     
     // Capture samples during calibration window (for standard deviation only)
     if (isCalibrating) {
-        calibrationSamples.push({ pitch: rawPitch, yaw: rawYaw, roll: rawRoll });
+        calibrationSamples.push({ pitch: unwrappedPitch, yaw: unwrappedYaw, roll: unwrappedRoll });
     }
 
-    // Compute filtered yaw -> tilt using recursive low-pass filter
-    const tiltFiltered = tiltLowPassFilter.update(yaw);
+    // Compute filtered pitch -> tilt using recursive low-pass filter (tilt now based on pitch)
+    const tiltFiltered = tiltLowPassFilter.update(pitch);
     currentTiltFiltered = tiltFiltered;
     tiltBuffer.push(tiltFiltered);
     if (tiltBuffer.length > maxDataPoints) tiltBuffer.shift();
@@ -619,8 +643,10 @@ function updateIMUData(rawPitch, rawYaw, rawRoll, accelX, accelY, accelZ) {
     // Calculate standard deviation deviation from calibration baseline
     let tiltStdDevValue = 0;
     if (calibrationBaseline.isCalibrated && calibrationTiltStd > 0) {
-        const deviation = currentTiltAvg - calibrationBaseline.yaw;
-        tiltStdDevValue = deviation / calibrationTiltStd;
+        const sigma = Math.max(calibrationTiltStd, 0.5); // guard against tiny std
+        // yaw is already baseline-zeroed via applyCalibration, so deviation is from 0
+        const deviation = currentTiltAvg;
+        tiltStdDevValue = deviation / sigma;
     }
     
     // Store standard deviation deviation for chart
@@ -632,8 +658,10 @@ function updateIMUData(rawPitch, rawYaw, rawRoll, accelX, accelY, accelZ) {
     
     // Haptic trigger: only post-calibration, when tilt exceeds 2σ from baseline
     if (calibrationBaseline.isCalibrated && calibrationTiltStd > 0) {
-        const tiltDeviation = Math.abs(currentTiltAvg - calibrationBaseline.yaw);
-        if (!hapticAlertActive && tiltDeviation > 2 * calibrationTiltStd) {
+        const sigma = Math.max(calibrationTiltStd, 0.5); // guard against tiny std
+        // yaw is already baseline-zeroed; compare to 0
+        const tiltDeviation = Math.abs(currentTiltAvg);
+        if (!hapticAlertActive && tiltDeviation > 2 * sigma) {
             const analysisStatusTextEl = document.getElementById('analysisStatusText');
             const prevAnalysisText = analysisStatusTextEl ? analysisStatusTextEl.textContent : '';
             sendHapticValue(1);
@@ -1491,7 +1519,7 @@ async function sendHapticValue(val) {
         console.log(`✅ Sent haptic value: ${val}`);
     } catch (err) {
         console.error('❌ Failed to send haptic value:', err);
-        showError('Failed to send haptic command');
+        // Suppress UI error for haptic failures; just log
     }
 }
 
@@ -1553,6 +1581,19 @@ function finalizeZeroOut() {
         roll: avg(filteredRoll),
         isCalibrated: true
     };
+
+    // Reset tilt std-dev and buffers when zeroing out
+    calibrationTiltStd = 0;
+    chartData.tiltStdDev = [];
+    currentTiltFiltered = 0;
+    currentTiltAvg = 0;
+    tiltBuffer.length = 0;
+    tiltPeakMidline.buffer = [];
+    tiltPeakMidline.midpoints = [];
+    tiltPeakMidline.lastExtreme = null;
+    if (document.getElementById('tiltValue')) {
+        document.getElementById('tiltValue').innerHTML = `0.0 <span class="gait-metric-unit">°</span>`;
+    }
     
     // Reset low-pass filter state for fresh start after zero-out
     tiltLowPassFilter.smoothedValue = null;
@@ -1588,6 +1629,7 @@ function startCalibration() {
     
     // Reset state
     calibrationSamples = [];
+    calibrationTiltStd = 0; // reset std baseline for new calibration
     calibrationCountdown = 10;
     isCalibrating = true;
     updateCalibrationUI();
@@ -1635,16 +1677,16 @@ function finalizeCalibration() {
     const filteredYaw = applyButterworthToArray(yawValues);
     const filteredRoll = applyButterworthToArray(rollValues);
     
-    // Calculate standard deviation from filtered yaw data (using existing baseline)
+    // Calculate standard deviation from filtered pitch data (tilt now based on pitch)
     const avg = (arr) => arr.reduce((sum, v) => sum + v, 0) / arr.length;
-    const meanYaw = avg(filteredYaw);
+    const meanPitch = avg(filteredPitch);
     
     const std = (arr, mean) => {
         const n = arr.length || 1;
         const s = arr.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0);
         return Math.sqrt(s / n);
     };
-    calibrationTiltStd = std(filteredYaw, meanYaw);
+    calibrationTiltStd = std(filteredPitch, meanPitch);
     
     if (hapticAlertTimer) {
         clearTimeout(hapticAlertTimer);
