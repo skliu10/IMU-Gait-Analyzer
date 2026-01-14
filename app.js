@@ -33,6 +33,7 @@ const chartData = {
     accelY: [],
     accelZ: [],
     tilt: [],
+    tiltStdDev: [], // Standard deviation deviation from calibration baseline
     timestamps: []
 };
 
@@ -615,12 +616,23 @@ function updateIMUData(rawPitch, rawYaw, rawRoll, accelX, accelY, accelZ) {
         currentTiltAvg = recent.length ? recent.reduce((a, b) => a + b, 0) / recent.length : tiltFiltered;
     }
     
+    // Calculate standard deviation deviation from calibration baseline
+    let tiltStdDevValue = 0;
+    if (calibrationBaseline.isCalibrated && calibrationTiltStd > 0) {
+        const deviation = currentTiltAvg - calibrationBaseline.yaw;
+        tiltStdDevValue = deviation / calibrationTiltStd;
+    }
+    
+    // Store standard deviation deviation for chart
+    chartData.tiltStdDev.push(tiltStdDevValue);
+    if (chartData.tiltStdDev.length > maxDataPoints) chartData.tiltStdDev.shift();
+    
     const tiltEl = document.getElementById('tiltValue');
     if (tiltEl) tiltEl.innerHTML = `${currentTiltAvg.toFixed(1)} <span class="gait-metric-unit">°</span>`;
     
     // Haptic trigger: only post-calibration, when tilt exceeds 2σ from baseline
     if (calibrationBaseline.isCalibrated && calibrationTiltStd > 0) {
-        const tiltDeviation = Math.abs(tiltAvg - calibrationBaseline.yaw);
+        const tiltDeviation = Math.abs(currentTiltAvg - calibrationBaseline.yaw);
         if (!hapticAlertActive && tiltDeviation > 2 * calibrationTiltStd) {
             const analysisStatusTextEl = document.getElementById('analysisStatusText');
             const prevAnalysisText = analysisStatusTextEl ? analysisStatusTextEl.textContent : '';
@@ -687,6 +699,7 @@ function updateIMUData(rawPitch, rawYaw, rawRoll, accelX, accelY, accelZ) {
         chartData.accelY.shift();
         chartData.accelZ.shift();
         chartData.tilt.shift();
+        chartData.tiltStdDev.shift();
     }
     
     // Update visualizations
@@ -697,7 +710,7 @@ function updateIMUData(rawPitch, rawYaw, rawRoll, accelX, accelY, accelZ) {
 }
 
 // Initialize charts
-let pitchChart, yawChart, rollChart, accelXChart, accelYChart, accelZChart, tiltChart;
+let pitchChart, yawChart, rollChart, accelXChart, accelYChart, accelZChart, tiltChart, tiltStdDevChart;
 
 function initializeCharts() {
     const chartConfig = (label, color, data) => {
@@ -792,6 +805,7 @@ function updateCharts() {
     if (accelYChart) accelYChart.update('none');
     if (accelZChart) accelZChart.update('none');
     if (tiltChart) tiltChart.update('none');
+    if (tiltStdDevChart) tiltStdDevChart.update('none');
 }
 
 // Recording Functions
