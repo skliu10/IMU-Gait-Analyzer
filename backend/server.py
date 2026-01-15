@@ -38,6 +38,7 @@ class GaitAnalyzer:
         
         # Cumulative counters (never decrease)
         self.total_strides = 0
+        self.total_ics = 0  # Track total initial contacts cumulatively
         self.session_start_time = None
         self.last_ic_count = 0
         
@@ -117,15 +118,19 @@ class GaitAnalyzer:
                 # Track cumulative strides based on initial contacts (more reliable)
                 current_ic_count = metrics['initial_contacts']
                 if current_ic_count > self.last_ic_count:
-                    # New initial contacts detected - add them to total
+                    # New initial contacts detected - add them to cumulative total
                     new_ics = current_ic_count - self.last_ic_count
-                    self.total_strides += (new_ics // 2)  # 2 ICs = 1 stride
+                    self.total_ics += new_ics
                     self.last_ic_count = current_ic_count
+                    print(f"🦶 +{new_ics} ICs detected → Total ICs: {self.total_ics} → Total Strides: {self.total_ics // 2}")
                 elif current_ic_count < self.last_ic_count:
                     # Buffer rolled over, reset tracking
                     self.last_ic_count = current_ic_count
                 
+                # Calculate total strides from cumulative ICs (2 ICs = 1 stride)
+                self.total_strides = self.total_ics // 2
                 metrics['total_strides'] = self.total_strides
+                metrics['total_initial_contacts'] = self.total_ics
                 
                 self.last_metrics = metrics
                 return metrics
@@ -175,13 +180,17 @@ class GaitAnalyzer:
         # Track cumulative strides based on initial contacts
         ic_count = len(peaks)
         if ic_count > self.last_ic_count:
-            # New initial contacts detected
+            # New initial contacts detected - add them to cumulative total
             new_ics = ic_count - self.last_ic_count
-            self.total_strides += (new_ics // 2)  # 2 ICs = 1 stride
+            self.total_ics += new_ics
             self.last_ic_count = ic_count
+            print(f"🦶 +{new_ics} ICs detected (fallback) → Total ICs: {self.total_ics} → Total Strides: {self.total_ics // 2}")
         elif ic_count < self.last_ic_count:
             # Buffer rolled over
             self.last_ic_count = ic_count
+        
+        # Calculate total strides from cumulative ICs (2 ICs = 1 stride)
+        self.total_strides = self.total_ics // 2
         
         metrics = {
             'gait_speed': round(estimated_speed, 2),
@@ -189,6 +198,7 @@ class GaitAnalyzer:
             'total_strides': self.total_strides,
             'cadence': round(cadence, 1),
             'initial_contacts': len(peaks),
+            'total_initial_contacts': self.total_ics,
             'status': 'analyzing_simple',
             'buffer_size': len(self.data_buffer),
             'using_headgait': False
@@ -207,6 +217,7 @@ async def websocket_handler(websocket):
     
     # Reset cumulative counters for new session
     analyzer.total_strides = 0
+    analyzer.total_ics = 0
     analyzer.last_ic_count = 0
     analyzer.session_start_time = None
     analyzer.data_buffer.clear()

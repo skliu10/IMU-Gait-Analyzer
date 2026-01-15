@@ -3,212 +3,908 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Polaris - Gait Analysis</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <title>Polaris</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.1.0"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f1e8;
+            padding: 20px;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        /* Decorative stars */
+        body::before, body::after {
+            content: '✦';
+            position: fixed;
+            font-size: 24px;
+            color: #3a3a3a;
+            opacity: 0.15;
+            animation: twinkle 3s ease-in-out infinite;
+        }
+        body::before { top: 10%; left: 5%; animation-delay: 0s; }
+        body::after { top: 15%; right: 8%; animation-delay: 1.5s; }
+        
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.2; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.2); }
+        }
+        
+        /* Header with Polaris branding */
+        h2 {
+            font-size: 56px;
+            font-weight: 700;
+            text-align: center;
+            margin: 30px 0 40px;
+            color: #1a1a1a;
+            letter-spacing: 12px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+        }
+        
+        h2::before {
+            content: '🏃';
+            font-size: 36px;
+        }
+        
+        h2::after {
+            content: '✦';
+            position: absolute;
+            top: -10px;
+            right: 30%;
+            font-size: 20px;
+            color: #3a3a3a;
+            animation: twinkle 2s ease-in-out infinite;
+        }
+        
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        /* Controls */
+        .controls { 
+            margin-bottom: 30px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 16px;
+            border: 1px solid #d4cec0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        button { 
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 8px;
+            border: 1px solid #3a3a3a;
+            background: #2a2a2a;
+            color: #f5f1e8;
+            font-weight: 500;
+            font-size: 13px;
+            transition: all 0.2s ease;
+            letter-spacing: 0.3px;
+        }
+        
+        button:hover { 
+            background: #1a1a1a;
+            border-color: #1a1a1a;
+        }
+        
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        button[style*="28a745"] {
+            background: #2a2a2a;
+            border-color: #3a3a3a;
+        }
+        
+        button[style*="ff5722"] {
+            background: #3a3a3a;
+            border-color: #4a4a4a;
+        }
+        
+        button[style*="9c27b0"] {
+            background: #4a4a4a;
+            border-color: #5a5a5a;
+        }
+        
+        button[style*="e74c3c"], button[style*="c0392b"] {
+            background: #5a3a3a;
+            border-color: #6a4a4a;
+        }
+        
+        button[style*="9b59b6"] {
+            background: #3a3a4a;
+            border-color: #4a4a5a;
+        }
+        
+        button[style*="007bff"] {
+            background: #2a3a4a;
+            border-color: #3a4a5a;
+        }
+        
+        button[style*="dc3545"] {
+            background: #4a2a2a;
+            border-color: #5a3a3a;
+        }
+        
+        button[style*="6c757d"] {
+            background: #505050;
+            border-color: #606060;
+        }
+        
+        .btn-update { 
+            padding: 6px 14px;
+            font-size: 12px;
+            margin-left: 8px;
+            background: #3a3a3a;
+            border-color: #4a4a4a;
+        }
+        
+        .calibrating { 
+            background: #1a1a1a !important;
+            border-color: #1a1a1a !important;
+            animation: pulse 1s ease-in-out infinite !important;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        /* Status Container */
+        #status-container { 
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .status-box { 
+            padding: 10px 20px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid #d4cec0;
+            font-weight: 500;
+            color: #2a2a2a;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s ease;
+        }
+        
+        .status-box:hover {
+            background: rgba(255, 255, 255, 0.8);
+        }
+        
+        /* Data Display */
+        #data { 
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            background: rgba(255, 255, 255, 0.6);
+            padding: 15px 20px;
+            border-radius: 8px;
+            border: 1px solid #d4cec0;
+            margin-bottom: 25px;
+            text-align: center;
+            color: #2a2a2a;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* HeadGait Metrics */
+        .headgait-metrics { 
+            margin: 25px 0;
+            padding: 25px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            border: 1px solid #d4cec0;
+        }
+        
+        .headgait-metrics h3 { 
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #1a1a1a;
+            font-size: 24px;
+            font-weight: 600;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+        
+        .metrics-display { 
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 15px;
+        }
+        
+        .metric-box { 
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid #d4cec0;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
+        .metric-box::before {
+            content: '✦';
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 14px;
+            color: #3a3a3a;
+            opacity: 0.2;
+        }
+        
+        .metric-box:hover {
+            background: rgba(255, 255, 255, 0.7);
+            border-color: #b4aea0;
+        }
+        
+        .metric-box .label { 
+            font-size: 11px;
+            color: #5a5a5a;
+            font-weight: 600;
+            letter-spacing: 1.2px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+        
+        .metric-box .value { 
+            font-size: 32px;
+            color: #1a1a1a;
+            font-weight: 600;
+            margin-top: 5px;
+            line-height: 1;
+        }
+        
+        .metric-box .unit { 
+            font-size: 14px;
+            color: #3a3a3a;
+            font-weight: 500;
+        }
+        
+        /* Charts */
+        .charts-grid { 
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            max-width: 1400px;
+        }
+        
+        .chart-container { 
+            background: rgba(255, 255, 255, 0.6);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            height: 280px;
+            border: 1px solid #d4cec0;
+            transition: all 0.2s ease;
+        }
+        
+        .chart-container:hover {
+            background: rgba(255, 255, 255, 0.75);
+            border-color: #b4aea0;
+        }
+        
+        /* MA Setting */
+        #ma-setting {
+            margin-top: 20px;
+            padding: 15px 25px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 8px;
+            display: inline-block;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+            border: 1px solid #d4cec0;
+        }
+        
+        #ma-setting label {
+            font-weight: 500;
+            font-size: 14px;
+            color: #2a2a2a;
+            letter-spacing: 0.3px;
+        }
+        
+        #ma-setting input {
+            width: 70px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #d4cec0;
+            font-size: 14px;
+            font-weight: 500;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.8);
+            color: #2a2a2a;
+            transition: all 0.2s ease;
+        }
+        
+        #ma-setting input:focus {
+            outline: none;
+            border-color: #3a3a3a;
+            background: rgba(255, 255, 255, 1);
+        }
+        
+        /* Waiting state */
+        .waiting-for-ble { 
+            max-width: 1400px;
+        }
+        
+        /* Footer credits - removed to avoid conflict with star */
+        .credits {
+            position: fixed;
+            bottom: 20px;
+            right: 30px;
+            font-size: 12px;
+            color: #3a3a3a;
+            opacity: 0.4;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            h2 { font-size: 36px; letter-spacing: 6px; }
+            .charts-grid { grid-template-columns: 1fr; }
+            .metrics-display { grid-template-columns: 1fr 1fr; }
+            .controls { padding: 15px; }
+            button { padding: 8px 16px; font-size: 12px; }
+            .credits { font-size: 10px; }
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header>
-            <div class="logo">POLARIS</div>
-            <p class="subtitle">Real-time Gait Analysis</p>
-        </header>
 
-        <!-- Connection Panel -->
-        <div class="connection-panel">
-            <button id="connectBtn" class="btn btn-primary">
-                <span class="btn-icon">🔵</span>
-                Connect to ESP32
-            </button>
-            <div class="status-indicator">
-                <span id="statusDot" class="status-dot disconnected"></span>
-                <span id="statusText" class="status-text">Disconnected</span>
-            </div>
-            <button id="controlSwitchBtn" class="btn btn-primary btn-disabled" disabled>
-                <span class="btn-icon">⏻</span>
-                Haptic service: Off
-            </button>
-            <button id="zeroOutBtn" class="btn btn-analysis btn-disabled" disabled>
-                <span class="btn-icon">🎯</span>
-                Zero Out IMU
-            </button>
-            <button id="calibrateBtn" class="btn btn-analysis btn-disabled" disabled>
-                <span class="btn-icon">🧭</span>
-                Calibrate (10s)
-            </button>
-            <div id="calibrationStatus" class="calibration-status" style="display: none;"></div>
-        </div>
+    <h2>POLARIS</h2>
 
-        <!-- Recording Panel -->
-        <div class="recording-panel">
-            <button id="startRecordBtn" class="btn btn-success btn-disabled" disabled>
-                <span class="btn-icon">⏺️</span>
-                Start Recording
-            </button>
-            <button id="stopRecordBtn" class="btn btn-danger btn-disabled" disabled>
-                <span class="btn-icon">⏹️</span>
-                Stop & Download
-            </button>
-            <div id="recordingInfo" class="recording-info" style="display: none;">
-                Recording: 0 samples (0.0s)
-            </div>
-        </div>
-
-        <!-- Real-time Analysis Panel (status only) -->
-        <div class="analysis-panel">
-            <div id="analysisStatus" class="analysis-status" style="display: none;">
-                <span class="status-dot analyzing"></span>
-                <span id="analysisStatusText">Analyzing...</span>
-            </div>
-        </div>
-
-        <!-- Error Message -->
-        <div id="errorMessage" class="error-message" style="display: none;">
-            <span class="error-icon">⚠️</span>
-            <span id="errorText"></span>
-            <button id="closeError" class="close-btn">×</button>
-        </div>
-
-        <!-- Tabs -->
-        <div class="tabs">
-            <button id="tabRaw" class="tab-button active">Raw Metrics</button>
-            <button id="tabDerived" class="tab-button">Derived Metrics</button>
-        </div>
-
-        <!-- Tab Content -->
-        <div id="tabRawContent" class="tab-content active">
-            <div class="section-title">Raw Metrics</div>
-            <div class="metrics-grid">
-                <div class="metric-card">
-                    <div class="metric-label">PITCH</div>
-                    <div id="pitchValue" class="metric-value">0.0°</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-label">YAW</div>
-                    <div id="yawValue" class="metric-value">0.0°</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-label">ROLL</div>
-                    <div id="rollValue" class="metric-value">0.0°</div>
-                </div>
-                <div class="metric-card accent">
-                    <div class="metric-label">ACCEL X</div>
-                    <div id="accelXValue" class="metric-value">0.00 m/s²</div>
-                </div>
-                <div class="metric-card accent">
-                    <div class="metric-label">ACCEL Y</div>
-                    <div id="accelYValue" class="metric-value">0.00 m/s²</div>
-                </div>
-                <div class="metric-card accent">
-                    <div class="metric-label">ACCEL Z</div>
-                    <div id="accelZValue" class="metric-value">0.00 m/s²</div>
-                </div>
-            </div>
-
-            <div class="charts-grid">
-                <div class="card chart-card">
-                    <h3>PITCH</h3>
-                    <div class="chart-container">
-                        <canvas id="pitchChart"></canvas>
-                    </div>
-                </div>
-
-                <div class="card chart-card">
-                    <h3>YAW</h3>
-                    <div class="chart-container">
-                        <canvas id="yawChart"></canvas>
-                    </div>
-                </div>
-
-                <div class="card chart-card">
-                    <h3>ROLL</h3>
-                    <div class="chart-container">
-                        <canvas id="rollChart"></canvas>
-                    </div>
-                </div>
-
-                <div class="card chart-card">
-                    <h3>ACCELERATION X</h3>
-                    <div class="chart-container">
-                        <canvas id="accelXChart"></canvas>
-                    </div>
-                </div>
-
-                <div class="card chart-card">
-                    <h3>ACCELERATION Y</h3>
-                    <div class="chart-container">
-                        <canvas id="accelYChart"></canvas>
-                    </div>
-                </div>
-
-                <div class="card chart-card">
-                    <h3>ACCELERATION Z</h3>
-                    <div class="chart-container">
-                        <canvas id="accelZChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="tabDerivedContent" class="tab-content">
-            <div class="section-title">Derived Metrics</div>
-            <div id="gaitMetricsGrid" class="gait-metrics-grid" style="display: grid;">
-                <div class="gait-metric-card">
-                    <div class="gait-metric-label">GAIT SPEED</div>
-                    <div id="gaitSpeedValue" class="gait-metric-value">0.00 <span class="gait-metric-unit">m/s</span></div>
-                </div>
-                <div class="gait-metric-card">
-                    <div class="gait-metric-label">CADENCE</div>
-                    <div id="cadenceValue" class="gait-metric-value">0.0 <span class="gait-metric-unit">steps/min</span></div>
-                </div>
-                <div class="gait-metric-card">
-                    <div class="gait-metric-label">STRIDE COUNT</div>
-                    <div id="strideCountValue" class="gait-metric-value">0</div>
-                </div>
-                <div class="gait-metric-card">
-                    <div class="gait-metric-label">TOTAL STRIDES</div>
-                    <div id="totalStridesValue" class="gait-metric-value">0</div>
-                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                        Buffer: <span id="bufferStridesValue">0</span>
-                    </div>
-                </div>
-                <div class="gait-metric-card">
-                    <div class="gait-metric-label">TILT (PITCH AVG)</div>
-                    <div id="tiltValue" class="gait-metric-value">0.0 <span class="gait-metric-unit">°</span></div>
-                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                        Smoothed pitch over ~1s
-                    </div>
-                </div>
-            </div>
-
-            <div class="charts-grid">
-                <div class="card chart-card">
-                    <h3>TILT (FILTERED PITCH)</h3>
-                    <div class="chart-container">
-                        <canvas id="tiltChart"></canvas>
-                    </div>
-                </div>
-                <div class="card chart-card">
-                    <h3>TILT STD DEV</h3>
-                    <div class="chart-container">
-                        <canvas id="tiltStdDevChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <footer>
-            <p>Polaris Running</p>
-            <p>Powered by vibes</p>
-        </footer>
+    <div class="controls">
+        <button onclick="connectIMU()" style="background-color: #28a745;">Connect to IMU</button>
+        <button onclick="connectHaptic()" style="background-color: #ff5722;">Connect to Haptic</button>
+        <button onclick="testHaptic()" style="background-color: #9c27b0;">Test Haptic (5s)</button>
+        <button id="runBtn" onclick="toggleRun()" style="background-color: #e74c3c;">Start Run</button>
+        
+        <button id="calBtn" onclick="startCalibration()" style="background-color: #9b59b6;">Start 10s Calibration</button>
+        <button onclick="setupFile()" style="background-color: #007bff;">Start CSV Log</button>
+        <button onclick="closeFile()" style="background-color: #dc3545;">Stop & Save</button>
+        <button onclick="resetOffsets()" style="background-color: #6c757d;">Reset All</button>
     </div>
 
-    <script src="app.js"></script>
+    <div id="status-container">
+        <div id="imu-status" class="status-box">IMU: Disconnected</div>
+        <div id="haptic-status" class="status-box">Haptic: Disconnected</div>
+        <div id="headgait-status" class="status-box">HeadGait: Disconnected</div>
+    </div>
+
+    <div class="waiting-for-ble" id="data">Waiting for data...</div>
+
+    <!-- HeadGait Metrics Display -->
+    <div class="headgait-metrics">
+        <h3>🚶 HeadGait Analysis</h3>
+        <div class="metrics-display">
+            <div class="metric-box">
+                <div class="label">GAIT SPEED</div>
+                <div class="value"><span id="gaitSpeed">0.0</span> <span class="unit">m/s</span></div>
+            </div>
+            <div class="metric-box">
+                <div class="label">CADENCE</div>
+                <div class="value"><span id="cadence">0.0</span> <span class="unit">steps/min</span></div>
+            </div>
+            <div class="metric-box">
+                <div class="label">STRIDE COUNT</div>
+                <div class="value"><span id="strideCount">0</span></div>
+            </div>
+            <div class="metric-box">
+                <div class="label">TOTAL STRIDES</div>
+                <div class="value"><span id="totalStrides">0</span></div>
+                <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                    Total ICs: <span id="totalICs">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 15px; padding: 10px; background: #eee; border-radius: 5px; display: inline-block;" id="ma-setting">
+        <label for="maWindowInput" style="font-weight: bold; font-size: 14px;">Moving Average Window: </label>
+        <input type="number" id="maWindowInput" value="200" min="1" max="1000" style="width: 60px; padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
+        <button class="btn-update" onclick="applyMAUpdate()">Update</button>
+    </div>
+
+    <div class="charts-grid">
+        <div class="chart-container" style="grid-column: span 2; height: 350px;"><canvas id="maPitchChart"></canvas></div>
+        <div class="chart-container"><canvas id="yawChart"></canvas></div>
+        <div class="chart-container"><canvas id="pitchChart"></canvas></div>
+        <div class="chart-container"><canvas id="filteredPitchChart"></canvas></div>
+        <div class="chart-container"><canvas id="rollChart"></canvas></div>
+    </div>
+
+<script>
+let fileHandle, writableStream, charts = {};
+const MAX_DATA_POINTS = 100;
+
+// --- BLE STATE (Separate for IMU and Haptic) ---
+let imuCharacteristic, hapticCharacteristic;
+let imuConnected = false, hapticConnected = false;
+
+// --- CALIBRATION & FILTER STATE ---
+let isCalibrating = false;
+let calData = [], calStats = { mean: 0, stdDev: 0 };
+let MA_WINDOW_SIZE = 200, maBuffer = [], maSum = 0;
+const b = [0.013356, 0.026712, 0.013356], a = [1.0, -1.64746, 0.70088];
+let x_hist = [0, 0], y_hist = [0, 0];
+let offsets = { yaw: 0, pitch: 0, roll: 0 }, lastValues = { yaw: null, pitch: null, roll: null };
+
+// --- HEADGAIT WEBSOCKET ---
+let websocket = null;
+let headgaitConnected = false;
+
+// Auto-detect WebSocket URL based on environment
+const WS_URL = (() => {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return 'ws://localhost:8000';
+    }
+    // Production: use deployed Render backend
+    return 'wss://imu-gait-analyzer.onrender.com';
+})();
+
+// HeadGait metrics
+let gaitMetrics = {
+    gait_speed: 0.0,
+    cadence: 0.0,
+    stride_count: 0,
+    total_strides: 0
+};
+
+// --- HEADGAIT WEBSOCKET CONNECTION ---
+function connectHeadGait() {
+    if (websocket && websocket.readyState === WebSocket.OPEN) {
+        console.log("📡 Already connected to HeadGait");
+        return;
+    }
+
+    const statusDiv = document.getElementById('headgait-status');
+    try {
+        statusDiv.innerText = "HeadGait: Connecting...";
+        websocket = new WebSocket(WS_URL);
+
+        websocket.onopen = () => {
+            headgaitConnected = true;
+            statusDiv.innerText = "HeadGait: Connected";
+            statusDiv.style.color = "green";
+            console.log("✅ HeadGait WebSocket Connected");
+        };
+
+        websocket.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.gait_speed !== undefined) {
+                    updateGaitMetrics(data);
+                }
+            } catch (e) {
+                console.error("❌ HeadGait message parse error:", e);
+            }
+        };
+
+        websocket.onerror = (error) => {
+            console.error("❌ HeadGait WebSocket Error:", error);
+            statusDiv.innerText = "HeadGait: Error";
+            statusDiv.style.color = "red";
+        };
+
+        websocket.onclose = () => {
+            headgaitConnected = false;
+            statusDiv.innerText = "HeadGait: Disconnected";
+            statusDiv.style.color = "gray";
+            console.log("📡 HeadGait WebSocket Closed");
+        };
+    } catch (e) {
+        console.error("❌ HeadGait Connection Error:", e);
+        statusDiv.innerText = "HeadGait: Error";
+        statusDiv.style.color = "red";
+    }
+}
+
+function sendToHeadGait(pitch, yaw, roll, accelX, accelY, accelZ) {
+    if (!headgaitConnected || !websocket || websocket.readyState !== WebSocket.OPEN) {
+        return;
+    }
+
+    const message = JSON.stringify({
+        pitch: pitch,
+        yaw: yaw,
+        roll: roll,
+        accelX: accelX,
+        accelY: accelY,
+        accelZ: accelZ,
+        timestamp: Date.now()
+    });
+
+    try {
+        websocket.send(message);
+    } catch (e) {
+        console.error("❌ Failed to send to HeadGait:", e);
+    }
+}
+
+function updateGaitMetrics(metrics) {
+    gaitMetrics = metrics;
+    
+    document.getElementById('gaitSpeed').textContent = metrics.gait_speed.toFixed(2);
+    document.getElementById('cadence').textContent = metrics.cadence.toFixed(1);
+    document.getElementById('strideCount').textContent = metrics.stride_count || 0;
+    document.getElementById('totalStrides').textContent = metrics.total_strides || 0;
+    
+    // Update total ICs if available (for debugging)
+    if (metrics.total_initial_contacts !== undefined) {
+        document.getElementById('totalICs').textContent = metrics.total_initial_contacts;
+    }
+    
+    console.log(`📊 HeadGait | Speed: ${metrics.gait_speed} m/s | Cadence: ${metrics.cadence} steps/min | Total Strides: ${metrics.total_strides} (ICs: ${metrics.total_initial_contacts || 'N/A'})`);
+}
+
+// --- HAPTIC FUNCTIONS ---
+async function sendHapticSignal(byteValue) {
+    if (!hapticConnected || !hapticCharacteristic) {
+        console.warn("⚠️ Haptic device not connected");
+        return;
+    }
+
+    try {
+        const payload = new Uint8Array([byteValue]);
+        await hapticCharacteristic.writeValue(payload);
+        console.log(`✅ Sent haptic value: ${byteValue}`);
+    } catch (error) {
+        console.error("❌ Failed to send haptic signal:", error);
+    }
+}
+
+async function testHaptic() {
+    if (!hapticConnected || !hapticCharacteristic) {
+        alert("Please connect to Haptic device first!");
+        return;
+    }
+
+    console.log("📳 Test Haptic: Starting 5-second test");
+    await sendHapticSignal(1); // Turn on haptic
+    
+    setTimeout(async () => {
+        await sendHapticSignal(0); // Turn off haptic
+        console.log("📳 Test Haptic: Complete");
+    }, 5000);
+}
+
+// --- HAPTIC CONNECTION ---
+const HAPTIC_CONTROL_SERVICE_UUID = 'a7b3c8d2-4e5f-4a1b-9c8d-7e6f5a4b3c2d';
+const HAPTIC_CONTROL_CHAR_UUID = 'f9e8d7c6-b5a4-4938-8271-6a5b4c3d2e1f';
+
+async function connectHaptic() {
+    const statusDiv = document.getElementById('haptic-status');
+    try {
+        statusDiv.innerText = "Haptic: Searching...";
+        const device = await navigator.bluetooth.requestDevice({
+            filters: [{ name: 'ESP32-C3_Haptic' }], 
+            optionalServices: [HAPTIC_CONTROL_SERVICE_UUID]
+        });
+
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService(HAPTIC_CONTROL_SERVICE_UUID);
+        hapticCharacteristic = await service.getCharacteristic(HAPTIC_CONTROL_CHAR_UUID);
+
+        hapticConnected = true;
+        statusDiv.innerText = "Haptic: Connected";
+        statusDiv.style.color = "green";
+        console.log("✅ Haptic Connected");
+    } catch (e) {
+        console.error("❌ Haptic Connection Error:", e);
+        statusDiv.innerText = "Haptic: Error";
+        statusDiv.style.color = "red";
+    }
+}
+
+// --- IMU CONNECTION ---
+async function connectIMU() {
+    const statusDiv = document.getElementById('imu-status');
+    try {
+        statusDiv.innerText = "IMU: Searching...";
+        const device = await navigator.bluetooth.requestDevice({
+            filters: [{ name: 'a_XIAO_IMU_DATA' }],
+            optionalServices: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b']
+        });
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService('4fafc201-1fb5-459e-8fcc-c5c9c331914b');
+        imuCharacteristic = await service.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a8');
+
+        await imuCharacteristic.startNotifications();
+        imuConnected = true;
+        statusDiv.innerText = "IMU: Connected";
+        statusDiv.style.color = "green";
+
+        imuCharacteristic.addEventListener('characteristicvaluechanged', handleIMUData);
+        
+        // Auto-connect to HeadGait backend
+        connectHeadGait();
+        
+        console.log("✅ IMU Connected");
+    } catch (e) {
+        console.error("❌ IMU Connection Error:", e);
+        statusDiv.innerText = "IMU: Error";
+        statusDiv.style.color = "red";
+    }
+}
+
+// --- RUN MODE STATE ---
+let isRunActive = false;
+let outsideStdDev = false;
+let lastHapticTime = 0;
+
+// --- TOGGLE RUN FUNCTION ---
+function toggleRun() {
+    if (calStats.mean === 0 && calStats.stdDev === 0) {
+        alert("Please run calibration first to establish the standard deviation range!");
+        return;
+    }
+    isRunActive = !isRunActive;
+    const btn = document.getElementById('runBtn');
+    btn.innerText = isRunActive ? "Stop Run" : "Start Run";
+    btn.style.backgroundColor = isRunActive ? "#c0392b" : "#e74c3c";
+    console.log(`🏃 Run mode ${isRunActive ? 'STARTED' : 'STOPPED'}`);
+}
+
+// --- IMU DATA HANDLER ---
+async function handleIMUData(event) {
+    const decodedValue = new TextDecoder().decode(event.target.value);
+    const raw = decodedValue.split(',').map(v => parseFloat(v));
+    if (raw.length < 6) return;
+    
+    document.getElementById('data').innerText = `IMU Data: ${decodedValue}`;
+    const now = new Date().toLocaleTimeString([], { hour12: false, minute: '2-digit', second: '2-digit' });
+    
+    // Parse: yaw, pitch, roll, accelX, accelY, accelZ
+    const yaw = raw[0];
+    const pitch = raw[1];
+    const roll = raw[2];
+    const accelX = raw[3];
+    const accelY = raw[4];
+    const accelZ = raw[5];
+    
+    const uYaw = unwrap(yaw, 'yaw');
+    const uPitch = unwrap(pitch, 'pitch');
+    const uRoll = unwrap(roll, 'roll');
+    const fPitch = butterworthFilter(uPitch);
+    const maPitchValue = movingAverage(fPitch);
+
+    if (isCalibrating) { calData.push(maPitchValue); }
+
+    // Run mode: haptic trigger on >2σ deviation
+    if (isRunActive) {
+        const nowTime = Date.now();
+        const upperLimit = calStats.mean + (2 * calStats.stdDev);
+        const lowerLimit = calStats.mean - (2 * calStats.stdDev);
+        const isCurrentlyOutside = (maPitchValue > upperLimit || maPitchValue < lowerLimit);
+
+        if (nowTime - lastHapticTime > 200) { 
+            if (isCurrentlyOutside && !outsideStdDev) {
+                sendHapticSignal(1);
+                outsideStdDev = true;
+                lastHapticTime = nowTime;
+            } 
+            else if (!isCurrentlyOutside && outsideStdDev) {
+                sendHapticSignal(0);
+                outsideStdDev = false;
+                lastHapticTime = nowTime;
+            }
+        }
+    }
+
+    updateSingleChart(charts.yaw, uYaw, now);
+    updateSingleChart(charts.pitch, uPitch, now);
+    updateSingleChart(charts.roll, uRoll, now);
+    updateSingleChart(charts.fPitch, fPitch, now);
+    updateSingleChart(charts.maPitch, maPitchValue, now);
+
+    // Send to HeadGait backend
+    sendToHeadGait(pitch, yaw, roll, accelX, accelY, accelZ);
+
+    if (writableStream) {
+        try {
+            const timestamp = new Date().toISOString();
+            const logLine = `${timestamp},${yaw.toFixed(4)},${pitch.toFixed(4)},${roll.toFixed(4)},${accelX.toFixed(4)},${accelY.toFixed(4)},${accelZ.toFixed(4)},${fPitch.toFixed(4)},${maPitchValue.toFixed(4)},${gaitMetrics.gait_speed.toFixed(2)},${gaitMetrics.cadence.toFixed(1)},${gaitMetrics.stride_count},${gaitMetrics.total_strides}\n`;
+            await writableStream.write(logLine);
+        } catch (err) { console.error("❌ CSV write error:", err); }
+    }
+}
+
+// --- UTILITY FUNCTIONS ---
+function applyMAUpdate() {
+    const inputVal = document.getElementById('maWindowInput').value;
+    const value = parseInt(inputVal);
+    if (isNaN(value) || value < 1) return;
+    MA_WINDOW_SIZE = value;
+    maBuffer = []; maSum = 0;
+    if (charts.maPitch) {
+        charts.maPitch.data.datasets[0].label = `Pitch (${MA_WINDOW_SIZE}-MA) + Calibration`;
+        charts.maPitch.update();
+    }
+    const box = document.getElementById('ma-setting');
+    box.style.backgroundColor = "#c8e6c9";
+    setTimeout(() => box.style.backgroundColor = "#eee", 300);
+}
+
+function movingAverage(input) {
+    maBuffer.push(input); maSum += input;
+    if (maBuffer.length > MA_WINDOW_SIZE) { maSum -= maBuffer.shift(); }
+    return maSum / maBuffer.length;
+}
+
+function butterworthFilter(input) {
+    let output = (b[0] * input) + (b[1] * x_hist[0]) + (b[2] * x_hist[1]) - (a[1] * y_hist[0]) - (a[2] * y_hist[1]);
+    x_hist[1] = x_hist[0]; x_hist[0] = input; y_hist[1] = y_hist[0]; y_hist[0] = output;
+    return output;
+}
+
+function unwrap(newValue, axis) {
+    if (lastValues[axis] === null) { lastValues[axis] = newValue; return newValue; }
+    let diff = newValue - lastValues[axis];
+    if (diff > 180) { offsets[axis] -= 360; } else if (diff < -180) { offsets[axis] += 360; }
+    lastValues[axis] = newValue;
+    return newValue + offsets[axis];
+}
+
+function startCalibration() {
+    if (!imuConnected || !lastValues.pitch) {
+        alert("Please connect to IMU and receive data before calibrating");
+        return;
+    }
+    isCalibrating = true; calData = [];
+    const btn = document.getElementById('calBtn');
+    btn.classList.add('calibrating');
+    let timeLeft = 10;
+    const timer = setInterval(() => {
+        timeLeft--; btn.innerText = `Calibrating... (${timeLeft}s)`;
+        if (timeLeft <= 0) { clearInterval(timer); finishCalibration(); }
+    }, 1000);
+}
+
+function finishCalibration() {
+    isCalibrating = false;
+    const btn = document.getElementById('calBtn');
+    btn.classList.remove('calibrating');
+    btn.innerText = "Start 10s Calibration";
+    if (calData.length === 0) {
+        alert("Calibration failed: no data collected");
+        return;
+    }
+    const n = calData.length;
+    calStats.mean = calData.reduce((a, b) => a + b) / n;
+    const variance = calData.reduce((a, b) => a + Math.pow(b - calStats.mean, 2), 0) / n;
+    calStats.stdDev = Math.sqrt(variance);
+    updateChartAnnotations();
+    console.log("✅ Calibration complete:", calStats);
+    alert(`Calibration Complete:\nMean: ${calStats.mean.toFixed(2)}°\nStd Dev: ${calStats.stdDev.toFixed(2)}°`);
+}
+
+function updateChartAnnotations() {
+    charts.maPitch.options.plugins.annotation.annotations = {
+        meanLine: { type: 'line', yMin: calStats.mean, yMax: calStats.mean, borderColor: '#000', borderWidth: 2, label: { display: true, content: 'Mean' } },
+        upperStd: { type: 'line', yMin: calStats.mean + (2*calStats.stdDev), yMax: calStats.mean + (2*calStats.stdDev), borderColor: '#666', borderWidth: 1, borderDash: [5, 5], label: { display: true, content: '+2σ' } },
+        lowerStd: { type: 'line', yMin: calStats.mean - (2*calStats.stdDev), yMax: calStats.mean - (2*calStats.stdDev), borderColor: '#666', borderWidth: 1, borderDash: [5, 5], label: { display: true, content: '-2σ' } }
+    };
+    charts.maPitch.update();
+}
+
+function createChart(canvasId, label, color, useAnnotations = false, yMin = -180, yMax = 180) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    return new Chart(ctx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: label, data: [], borderColor: color, backgroundColor: color + '22', borderWidth: 2, tension: 0.1, pointRadius: 0 }] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: { min: yMin, max: yMax, ticks: { stepSize: (yMax - yMin) / 4 } } },
+            animation: false,
+            plugins: { annotation: useAnnotations ? { annotations: {} } : false }
+        }
+    });
+}
+
+charts.yaw    = createChart('yawChart',   'Yaw (Raw)',      '#007bff');
+charts.pitch  = createChart('pitchChart', 'Pitch (Raw)',    '#2ecc71');
+charts.fPitch = createChart('filteredPitchChart', 'Pitch (Butterworth)', '#16a085');
+charts.roll   = createChart('rollChart',  'Roll (Raw)',     '#e91e63');
+charts.maPitch = createChart('maPitchChart', `Pitch (${MA_WINDOW_SIZE}-MA) + Calibration`, '#f39c12', true, -100, 100);
+
+function updateSingleChart(chart, newValue, timeLabel) {
+    chart.data.labels.push(timeLabel);
+    chart.data.datasets[0].data.push(newValue);
+    if (chart.data.labels.length > MAX_DATA_POINTS) { chart.data.labels.shift(); chart.data.datasets[0].data.shift(); }
+    chart.update();
+}
+
+function resetOffsets() {
+    offsets = { yaw: 0, pitch: 0, roll: 0 }; lastValues = { yaw: null, pitch: null, roll: null };
+    x_hist = [0, 0]; y_hist = [0, 0]; maBuffer = []; maSum = 0;
+    calStats = { mean: 0, stdDev: 0 }; calData = [];
+    isRunActive = false; outsideStdDev = false;
+    
+    const runBtn = document.getElementById('runBtn');
+    runBtn.innerText = "Start Run";
+    runBtn.style.backgroundColor = "#e74c3c";
+    
+    Object.values(charts).forEach(chart => {
+        chart.data.labels = [];
+        chart.data.datasets[0].data = [];
+        chart.update();
+    });
+    
+    if (charts.maPitch.options.plugins.annotation) {
+        charts.maPitch.options.plugins.annotation.annotations = {};
+        charts.maPitch.update();
+    }
+    
+    // Reset HeadGait metrics display
+    document.getElementById('gaitSpeed').textContent = '0.0';
+    document.getElementById('cadence').textContent = '0.0';
+    document.getElementById('strideCount').textContent = '0';
+    document.getElementById('totalStrides').textContent = '0';
+    document.getElementById('totalICs').textContent = '0';
+    
+    console.log("✅ All data reset");
+    alert("All data has been reset!");
+}
+
+// --- FILE LOGGING ---
+async function setupFile() {
+    const imuStatus = document.getElementById('imu-status');
+    try {
+        fileHandle = await window.showSaveFilePicker({
+            suggestedName: 'imu_data_log.csv',
+            types: [{ description: 'CSV File', accept: {'text/csv': ['.csv']} }]
+        });
+        
+        writableStream = await fileHandle.createWritable();
+        await writableStream.write("Timestamp,Yaw,Pitch,Roll,AccX,AccY,AccZ,FilteredPitch,MAPitch,GaitSpeed,Cadence,StrideCount,TotalStrides\n");
+        
+        imuStatus.innerText = "IMU: Logging Active";
+        imuStatus.style.color = "red"; 
+        console.log("📄 CSV Logging Started");
+    } catch (err) {
+        console.error("❌ File selection failed:", err);
+    }
+}
+
+async function closeFile() {
+    if (writableStream) {
+        await writableStream.close();
+        writableStream = null;
+        const imuStatus = document.getElementById('imu-status');
+        imuStatus.innerText = "IMU: File Saved";
+        imuStatus.style.color = "grey";
+        alert("Logging stopped. File saved.");
+        console.log("📄 CSV Logging Stopped");
+    }
+}
+
+console.log("✅ IMU Tracker Initialized");
+</script>
+
+<div class="credits">Michael, Connor, Skyler</div>
+
 </body>
 </html>
-
