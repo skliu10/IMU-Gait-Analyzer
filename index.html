@@ -20,6 +20,16 @@
             min-height: 100vh;
             position: relative;
             overflow-x: hidden;
+            box-sizing: border-box;
+        }
+        
+        html {
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        
+        *, *:before, *:after {
+            box-sizing: inherit;
         }
         
         /* Decorative stars */
@@ -47,32 +57,23 @@
             margin: 30px 0 40px;
             color: #1a1a1a;
             letter-spacing: 12px;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 20px;
+            transition: font-size 0.3s ease, letter-spacing 0.3s ease;
         }
         
-        h2::before {
-            content: '🏃';
-            font-size: 36px;
-        }
-        
-        h2::after {
-            content: '✦';
-            position: absolute;
-            top: -10px;
-            right: 30%;
-            font-size: 20px;
-            color: #3a3a3a;
-            animation: twinkle 2s ease-in-out infinite;
-        }
+        /* Removed emoji decorations for cleaner look */
         
         /* Container */
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
+            padding: 0 20px;
+            width: 100%;
+        }
+        
+        /* Prevent horizontal scroll on small screens */
+        img, video, canvas, iframe {
+            max-width: 100%;
+            height: auto;
         }
         
         /* Controls */
@@ -87,6 +88,7 @@
             border-radius: 16px;
             border: 1px solid #d4cec0;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            transition: padding 0.3s ease, gap 0.3s ease;
         }
         
         button { 
@@ -109,46 +111,6 @@
         
         button:active {
             transform: scale(0.98);
-        }
-        
-        button[style*="28a745"] {
-            background: #2a2a2a;
-            border-color: #3a3a3a;
-        }
-        
-        button[style*="ff5722"] {
-            background: #3a3a3a;
-            border-color: #4a4a4a;
-        }
-        
-        button[style*="9c27b0"] {
-            background: #4a4a4a;
-            border-color: #5a5a5a;
-        }
-        
-        button[style*="e74c3c"], button[style*="c0392b"] {
-            background: #5a3a3a;
-            border-color: #6a4a4a;
-        }
-        
-        button[style*="9b59b6"] {
-            background: #3a3a4a;
-            border-color: #4a4a5a;
-        }
-        
-        button[style*="007bff"] {
-            background: #2a3a4a;
-            border-color: #3a4a5a;
-        }
-        
-        button[style*="dc3545"] {
-            background: #4a2a2a;
-            border-color: #5a3a3a;
-        }
-        
-        button[style*="6c757d"] {
-            background: #505050;
-            border-color: #606060;
         }
         
         .btn-update { 
@@ -189,10 +151,29 @@
             color: #2a2a2a;
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
             transition: all 0.2s ease;
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
         }
         
         .status-box:hover {
             background: rgba(255, 255, 255, 0.8);
+        }
+        
+        /* Message box */
+        .message-box {
+            background: rgba(255, 255, 255, 0.9) !important;
+            color: #2a2a2a;
+            font-weight: 600;
+            border-color: #3a3a3a !important;
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         
         /* Data Display */
@@ -207,6 +188,8 @@
             text-align: center;
             color: #2a2a2a;
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+            word-break: break-all;
+            overflow-wrap: break-word;
         }
         
         /* HeadGait Metrics */
@@ -287,9 +270,9 @@
         /* Charts */
         .charts-grid { 
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(min(450px, 100%), 1fr));
             gap: 20px;
-            max-width: 1400px;
+            width: 100%;
         }
         
         .chart-container { 
@@ -300,6 +283,13 @@
             height: 280px;
             border: 1px solid #d4cec0;
             transition: all 0.2s ease;
+            position: relative;
+            min-height: 200px;
+        }
+        
+        .chart-container canvas {
+            max-width: 100%;
+            height: auto;
         }
         
         .chart-container:hover {
@@ -310,12 +300,14 @@
         /* MA Setting */
         #ma-setting {
             margin-top: 20px;
+            margin-bottom: 20px;
             padding: 15px 25px;
             background: rgba(255, 255, 255, 0.6);
             border-radius: 8px;
             display: inline-block;
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
             border: 1px solid #d4cec0;
+            max-width: 100%;
         }
         
         #ma-setting label {
@@ -361,14 +353,253 @@
             letter-spacing: 0.5px;
         }
         
-        /* Responsive */
-        @media (max-width: 768px) {
-            h2 { font-size: 36px; letter-spacing: 6px; }
-            .charts-grid { grid-template-columns: 1fr; }
-            .metrics-display { grid-template-columns: 1fr 1fr; }
-            .controls { padding: 15px; }
-            button { padding: 8px 16px; font-size: 12px; }
-            .credits { font-size: 10px; }
+        /* Responsive Design */
+        
+        /* Large Desktop (1400px+) */
+        @media (min-width: 1400px) {
+            .charts-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        /* Desktop (1024px - 1399px) */
+        @media (max-width: 1399px) {
+            h2 { font-size: 48px; letter-spacing: 10px; }
+            .charts-grid {
+                grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr));
+            }
+        }
+        
+        /* Tablet Landscape (900px - 1023px) */
+        @media (max-width: 1023px) {
+            h2 { font-size: 42px; letter-spacing: 8px; }
+            .controls { 
+                padding: 18px;
+                gap: 10px;
+            }
+            button { 
+                padding: 9px 18px; 
+                font-size: 12px; 
+            }
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            .chart-container {
+                height: 300px;
+            }
+            .chart-wide {
+                grid-column: span 1;
+                height: 300px;
+            }
+        }
+        
+        /* Tablet Portrait (768px - 899px) */
+        @media (max-width: 899px) {
+            h2 { font-size: 38px; letter-spacing: 6px; }
+            .metrics-display { 
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+            }
+            .controls {
+                gap: 8px;
+            }
+            #status-container {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+        }
+        
+        /* Mobile Landscape (640px - 767px) */
+        @media (max-width: 767px) {
+            body { padding: 15px; }
+            h2 { 
+                font-size: 32px; 
+                letter-spacing: 4px;
+                margin: 20px 0 30px;
+            }
+            .controls { 
+                padding: 15px;
+                gap: 8px;
+            }
+            button { 
+                padding: 8px 14px; 
+                font-size: 11px;
+                flex: 1 1 calc(50% - 8px);
+                min-width: 140px;
+            }
+            .btn-update {
+                padding: 6px 12px;
+                font-size: 11px;
+            }
+            .headgait-metrics {
+                padding: 20px;
+            }
+            .headgait-metrics h3 {
+                font-size: 20px;
+            }
+            .chart-container {
+                height: 260px;
+                padding: 15px;
+            }
+            #ma-setting {
+                padding: 12px 20px;
+            }
+            #ma-setting label {
+                font-size: 13px;
+            }
+        }
+        
+        /* Mobile Portrait (480px - 639px) */
+        @media (max-width: 639px) {
+            h2 { 
+                font-size: 28px; 
+                letter-spacing: 3px;
+            }
+            .controls {
+                padding: 12px;
+            }
+            button {
+                flex: 1 1 100%;
+                min-width: unset;
+                padding: 10px 16px;
+                font-size: 12px;
+            }
+            .metrics-display { 
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+            .metric-box {
+                padding: 15px;
+            }
+            #status-container {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+            }
+            .status-box {
+                width: 100%;
+                text-align: center;
+                font-size: 13px;
+                padding: 10px 15px;
+                white-space: normal;
+            }
+            .charts-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            .chart-container {
+                height: 240px;
+            }
+        }
+        
+        /* Small Mobile (380px - 479px) */
+        @media (max-width: 479px) {
+            body { padding: 10px; }
+            h2 { 
+                font-size: 24px; 
+                letter-spacing: 2px;
+            }
+            .controls {
+                padding: 10px;
+                gap: 6px;
+            }
+            button {
+                padding: 8px 12px;
+                font-size: 11px;
+            }
+            .headgait-metrics {
+                padding: 15px;
+            }
+            .headgait-metrics h3 {
+                font-size: 18px;
+            }
+            .metric-box .value {
+                font-size: 28px;
+            }
+            .chart-container {
+                height: 220px;
+                padding: 12px;
+            }
+            .chart-container canvas {
+                max-width: 100%;
+                height: auto !important;
+            }
+            #ma-setting {
+                padding: 10px 15px;
+                width: calc(100% - 20px);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 8px;
+                box-sizing: border-box;
+            }
+            #ma-setting label {
+                font-size: 12px;
+                text-align: center;
+            }
+            #ma-setting input {
+                width: 100%;
+                max-width: 200px;
+            }
+            #ma-setting .btn-update {
+                width: 100%;
+                max-width: 200px;
+                margin: 0;
+            }
+            .credits {
+                position: static;
+                text-align: center;
+                margin-top: 20px;
+                margin-bottom: 10px;
+                font-size: 10px;
+            }
+            #data {
+                font-size: 12px;
+                padding: 12px 15px;
+            }
+        }
+        
+        /* Extra Small Mobile (< 380px) */
+        @media (max-width: 379px) {
+            h2 { 
+                font-size: 20px; 
+                letter-spacing: 1px;
+            }
+            button {
+                font-size: 10px;
+                padding: 7px 10px;
+            }
+            .metric-box .value {
+                font-size: 24px;
+            }
+            .chart-container {
+                height: 200px;
+                padding: 10px;
+            }
+        }
+        
+        /* Landscape orientation on mobile */
+        @media (max-height: 500px) and (orientation: landscape) {
+            body { padding: 10px; }
+            h2 { 
+                font-size: 24px; 
+                margin: 15px 0 20px;
+                letter-spacing: 3px;
+            }
+            .controls { padding: 10px; }
+            .headgait-metrics { 
+                padding: 15px;
+                margin: 15px 0;
+            }
+            .metrics-display {
+                grid-template-columns: repeat(4, 1fr);
+            }
+            .chart-container {
+                height: 200px;
+            }
+            #status-container {
+                flex-wrap: wrap;
+            }
         }
     </style>
 </head>
@@ -377,28 +608,29 @@
     <h2>POLARIS</h2>
 
     <div class="controls">
-        <button onclick="connectIMU()" style="background-color: #28a745;">Connect to IMU</button>
-        <button onclick="connectHaptic()" style="background-color: #ff5722;">Connect to Haptic</button>
-        <button onclick="testHaptic()" style="background-color: #9c27b0;">Test Haptic (5s)</button>
-        <button id="runBtn" onclick="toggleRun()" style="background-color: #e74c3c;">Start Run</button>
+        <button onclick="connectIMU()">Connect to IMU</button>
+        <button onclick="connectHaptic()">Connect to Haptic</button>
+        <button onclick="testHaptic()">Test Haptic (5s)</button>
+        <button id="runBtn" onclick="toggleRun()">Start Run</button>
         
-        <button id="calBtn" onclick="startCalibration()" style="background-color: #9b59b6;">Start 10s Calibration</button>
-        <button onclick="setupFile()" style="background-color: #007bff;">Start CSV Log</button>
-        <button onclick="closeFile()" style="background-color: #dc3545;">Stop & Save</button>
-        <button onclick="resetOffsets()" style="background-color: #6c757d;">Reset All</button>
+        <button id="calBtn" onclick="startCalibration()">Start 10s Calibration</button>
+        <button onclick="setupFile()">Start CSV Log</button>
+        <button onclick="closeFile()">Stop & Save</button>
+        <button onclick="resetOffsets()">Reset All</button>
     </div>
 
     <div id="status-container">
         <div id="imu-status" class="status-box">IMU: Disconnected</div>
         <div id="haptic-status" class="status-box">Haptic: Disconnected</div>
         <div id="headgait-status" class="status-box">HeadGait: Disconnected</div>
+        <div id="message-status" class="status-box message-box" style="display: none;"></div>
     </div>
 
     <div class="waiting-for-ble" id="data">Waiting for data...</div>
 
     <!-- HeadGait Metrics Display -->
     <div class="headgait-metrics">
-        <h3>🚶 HeadGait Analysis</h3>
+        <h3>HeadGait Analysis</h3>
         <div class="metrics-display">
             <div class="metric-box">
                 <div class="label">GAIT SPEED</div>
@@ -429,7 +661,7 @@
     </div>
 
     <div class="charts-grid">
-        <div class="chart-container" style="grid-column: span 2; height: 350px;"><canvas id="maPitchChart"></canvas></div>
+        <div class="chart-container chart-wide"><canvas id="maPitchChart"></canvas></div>
         <div class="chart-container"><canvas id="yawChart"></canvas></div>
         <div class="chart-container"><canvas id="pitchChart"></canvas></div>
         <div class="chart-container"><canvas id="filteredPitchChart"></canvas></div>
@@ -472,6 +704,24 @@ let gaitMetrics = {
     stride_count: 0,
     total_strides: 0
 };
+
+// --- MESSAGE DISPLAY FUNCTION ---
+let messageTimeout = null;
+function showMessage(message, duration = 4000) {
+    const messageBox = document.getElementById('message-status');
+    messageBox.textContent = message;
+    messageBox.style.display = 'block';
+    
+    // Clear any existing timeout
+    if (messageTimeout) {
+        clearTimeout(messageTimeout);
+    }
+    
+    // Auto-hide after duration
+    messageTimeout = setTimeout(() => {
+        messageBox.style.display = 'none';
+    }, duration);
+}
 
 // --- HEADGAIT WEBSOCKET CONNECTION ---
 function connectHeadGait() {
@@ -578,15 +828,17 @@ async function sendHapticSignal(byteValue) {
 
 async function testHaptic() {
     if (!hapticConnected || !hapticCharacteristic) {
-        alert("Please connect to Haptic device first!");
+        showMessage("⚠️ Please connect to Haptic device first!");
         return;
     }
 
+    showMessage("📳 Testing haptic for 5 seconds...");
     console.log("📳 Test Haptic: Starting 5-second test");
     await sendHapticSignal(1); // Turn on haptic
     
     setTimeout(async () => {
         await sendHapticSignal(0); // Turn off haptic
+        showMessage("✅ Haptic test complete!");
         console.log("📳 Test Haptic: Complete");
     }, 5000);
 }
@@ -658,13 +910,13 @@ let lastHapticTime = 0;
 // --- TOGGLE RUN FUNCTION ---
 function toggleRun() {
     if (calStats.mean === 0 && calStats.stdDev === 0) {
-        alert("Please run calibration first to establish the standard deviation range!");
+        showMessage("⚠️ Please run calibration first!");
         return;
     }
     isRunActive = !isRunActive;
     const btn = document.getElementById('runBtn');
     btn.innerText = isRunActive ? "Stop Run" : "Start Run";
-    btn.style.backgroundColor = isRunActive ? "#c0392b" : "#e74c3c";
+    showMessage(isRunActive ? "▶️ Run mode started!" : "⏹️ Run mode stopped");
     console.log(`🏃 Run mode ${isRunActive ? 'STARTED' : 'STOPPED'}`);
 }
 
@@ -744,8 +996,8 @@ function applyMAUpdate() {
         charts.maPitch.update();
     }
     const box = document.getElementById('ma-setting');
-    box.style.backgroundColor = "#c8e6c9";
-    setTimeout(() => box.style.backgroundColor = "#eee", 300);
+    box.style.backgroundColor = "rgba(255, 255, 255, 0.9)";
+    setTimeout(() => box.style.backgroundColor = "rgba(255, 255, 255, 0.6)", 300);
 }
 
 function movingAverage(input) {
@@ -770,9 +1022,10 @@ function unwrap(newValue, axis) {
 
 function startCalibration() {
     if (!imuConnected || !lastValues.pitch) {
-        alert("Please connect to IMU and receive data before calibrating");
+        showMessage("⚠️ Please connect to IMU first!");
         return;
     }
+    showMessage("🧭 Calibrating for 10 seconds...");
     isCalibrating = true; calData = [];
     const btn = document.getElementById('calBtn');
     btn.classList.add('calibrating');
@@ -789,7 +1042,7 @@ function finishCalibration() {
     btn.classList.remove('calibrating');
     btn.innerText = "Start 10s Calibration";
     if (calData.length === 0) {
-        alert("Calibration failed: no data collected");
+        showMessage("❌ Calibration failed: no data collected");
         return;
     }
     const n = calData.length;
@@ -798,7 +1051,7 @@ function finishCalibration() {
     calStats.stdDev = Math.sqrt(variance);
     updateChartAnnotations();
     console.log("✅ Calibration complete:", calStats);
-    alert(`Calibration Complete:\nMean: ${calStats.mean.toFixed(2)}°\nStd Dev: ${calStats.stdDev.toFixed(2)}°`);
+    showMessage(`✅ Calibration complete! Mean: ${calStats.mean.toFixed(2)}° | Std Dev: ${calStats.stdDev.toFixed(2)}°`, 5000);
 }
 
 function updateChartAnnotations() {
@@ -845,7 +1098,6 @@ function resetOffsets() {
     
     const runBtn = document.getElementById('runBtn');
     runBtn.innerText = "Start Run";
-    runBtn.style.backgroundColor = "#e74c3c";
     
     Object.values(charts).forEach(chart => {
         chart.data.labels = [];
@@ -866,7 +1118,7 @@ function resetOffsets() {
     document.getElementById('totalICs').textContent = '0';
     
     console.log("✅ All data reset");
-    alert("All data has been reset!");
+    showMessage("🔄 All data has been reset!");
 }
 
 // --- FILE LOGGING ---
@@ -883,9 +1135,13 @@ async function setupFile() {
         
         imuStatus.innerText = "IMU: Logging Active";
         imuStatus.style.color = "red"; 
+        showMessage("📄 CSV logging started!");
         console.log("📄 CSV Logging Started");
     } catch (err) {
-        console.error("❌ File selection failed:", err);
+        if (err.name !== 'AbortError') {
+            showMessage("❌ File selection failed");
+            console.error("❌ File selection failed:", err);
+        }
     }
 }
 
@@ -896,7 +1152,7 @@ async function closeFile() {
         const imuStatus = document.getElementById('imu-status');
         imuStatus.innerText = "IMU: File Saved";
         imuStatus.style.color = "grey";
-        alert("Logging stopped. File saved.");
+        showMessage("💾 Logging stopped. File saved!");
         console.log("📄 CSV Logging Stopped");
     }
 }
